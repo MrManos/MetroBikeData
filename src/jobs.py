@@ -10,10 +10,11 @@ log_level = os.environ.get("LOG_LEVEL")
 logging.basicConfig(level=log_level)
 
 REDIS_IP = os.environ.get("REDIS_IP")
-
-rd = redis.Redis(host=REDIS_IP, port=6379, db=0)
-q = HotQueue("queue", host=REDIS_IP, port=6379, db=1)
-jdb = redis.Redis(host=REDIS_IP, port=6379, db=2)
+trips_db = redis.Redis(host=REDIS_IP, port=6379, db=0)
+kiosk_db = redis.Redis(host=REDIS_IP, port=6379, db=1)
+q = HotQueue("queue", host=REDIS_IP, port=6379, db=2)
+jdb = redis.Redis(host=REDIS_IP, port=6379, db=3)
+res = redis.Redis(host=REDIS_IP, port=6379, db=4)
 
 def _generate_jid():
     """
