@@ -21,14 +21,14 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - REDIS_IP=redis-db
-  worker:
-    image: worker
-    build:
-      context: ./
-      dockerfile: Dockerfile
-    depends_on:
-      - redis-db
-    entrypoint: python3 worker.py
-    environment:
-      - LOG_LEVEL=INFO
-      - REDIS_IP=redis-db
+  # worker:
+  #   image: worker
+  #   build:
+  #     context: ./
+  #     dockerfile: Dockerfile
+  #   depends_on:
+  #     - redis-db
+  #   entrypoint: python3 worker.py
+  #   environment:
+  #     - LOG_LEVEL=INFO
+  #     - REDIS_IP=redis-db

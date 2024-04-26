@@ -6,18 +6,21 @@ from hotqueue import HotQueue
 import redis
 import api
 import jobs
+from jobs import trips_db, kiosk_db, q, jdb, res
 
 # Initialize logging
 log_level = os.environ.get("LOG_LEVEL")
 logging.basicConfig(level=log_level)
 
-# Initialize Redis connections
-REDIS_IP = os.environ.get("REDIS_IP")
-trips_db = redis.Redis(host=REDIS_IP, port=6379, db=0)
-kiosk_db = redis.Redis(host=REDIS_IP, port=6379, db=1)
-q = HotQueue("queue", host=REDIS_IP, port=6379, db=2)
-jdb = redis.Redis(host=REDIS_IP, port=6379, db=3)
-res = redis.Redis(host=REDIS_IP, port=6379, db=4)
+## Would this be a list or dict 
+# I think list u dont have to say rn tho
+# def plotBetweenKiosk( kiosk_1, kiosk_2) -> list:
+#     '''
+#     This returns the distribution of 
+    
+#     '''
+
+
 
 
 @q.worker
