@@ -1,10 +1,13 @@
 import requests
-from flask import Flask, request, app
+from flask import Flask, request, app, send_file
 import json
 from jobs import trips_db, kiosk_db, q, jdb, res
 import logging
 import os
 import redis
+from datetime import datetime
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -70,10 +73,15 @@ def load_data():
         return 'Failed to load data to Redis', 500
     trips_db.flushall()
     trips_data = response.json()
-    logging.debug(f"Number of trips retrieved: {len(trips_data)}")
-    for i in range(len(trips_data)//chunk_size):
-        trips_db.set(f'chunk {i}',json.dumps(trips_data[i*chunk_size:(i+1)*chunk_size]))
-    trips_db.set(f'chunk {i+1}',json.dumps(trips_data[(i+1)*chunk_size:]))
+    logging.debug(f"Number of trips retrieved: {len(trips_data)}")  
+
+    n = len(trips_data)//chunk_size     # number of chunks
+    if n > 0:
+        for i in range(n):
+            trips_db.set(f'chunk {i}',json.dumps(trips_data[i*chunk_size:(i+1)*chunk_size]))
+        trips_db.set(f'chunk {i+1}',json.dumps(trips_data[(i+1)*chunk_size:]))
+    else:
+        trips_db.set(f'trips',json.dumps(trips_data))
 
     # Load kiosk data to trips_db in chunks
     response = requests.get(kiosk_url)
@@ -85,6 +93,45 @@ def load_data():
     kiosk_db.set('kiosks', json.dumps(kiosk_data))
 
     return f'Loaded {len(trips_data)} trips and {len(kiosk_data)} kiosks into Redis databases.', 200
+
+
+@app.route('/plot', methods=['GET'])
+def plot():
+    """
+    Route to plot routes data for a given day between two kiosk locations to Redis via POST request.
+
+    Example command: curl -o plot.png "localhost:5000/plot?day=01/31/2024&kiosk1=4055&kiosk2=2498"
+    """
+    day = request.args.get('day')
+    k1 = request.args.get('kiosk1')
+    k2 = request.args.get('kiosk2')
+    # Check if parameters are provided and valid
+    if not all([day, k1, k2]):
+        logging.error("Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.")
+        return "Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.", 400
+
+    # Get all the trips on that day between the two kiosks
+    trips = []
+    day = datetime.strptime(day, "%m/%d/%Y")
+    trips_data, kiosk_data = get_data(trips_db,kiosk_db)
+    for trip in trips_data:
+        if 'checkout_kiosk_id' in trip and 'return_kiosk_id' in trip:
+            kiosk_set = {trip['checkout_kiosk_id'], trip['return_kiosk_id']}
+            trips_day = datetime.strptime(trip['checkout_date'][:10], "%Y-%m-%d")
+            if trips_day == day and kiosk_set == {k1, k2} or kiosk_set == {k2, k1}:
+                trips.append(trip)
+
+    # Get trip durations
+    trip_durations = [int(trip['trip_duration_minutes']) for trip in trips]
+
+    # Plot trip durations on histogram and save figure
+    plt.hist(trip_durations, bins=range(0, 31))
+    plt.xlabel('Trip Duration (minutes)')
+    plt.ylabel('Frequency')
+    plt.title('Histogram of Trip Durations')
+    plt.savefig('plot.png')
+
+    return send_file('plot.png', mimetype='image/png', as_attachment=True)
 
 if __name__ == '__main__':
     app.run(debug=True, host = '0.0.0.0', port = 5000)
