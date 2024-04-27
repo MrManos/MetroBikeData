@@ -1,13 +1,14 @@
 import requests
 from flask import Flask, request, app, send_file
 import json
-from jobs import trips_db, kiosk_db, q, jdb, res
+from jobs import trips_db, kiosk_db, get_job_by_id, res
 import logging
 import os
 import redis
 from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
+from typing import List
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -39,6 +40,30 @@ def get_data(trips_db: redis.client.Redis, kiosk_db: redis.client.Redis) -> tupl
     kiosk_data = json.loads(kiosk_db.get('kiosks'))
 
     return trips_data, kiosk_data
+
+def filter_by_date(trips_data: List[dict], start_datetime: datetime, end_datetime:datetime) -> List[dict]:
+    '''
+    Filters trip data within the interval [start_data, end_date]
+
+    Args:
+        trips_data: List of dicts, each dict is data for one trip
+        start_date: start date of the interval in TBD format
+        end_date: end date of the interval in TBD format
+
+    Returns:
+        List[dict]: filtered trips_data
+
+    Example:
+
+    '''
+
+    # helper function to check if trip is within time interval
+    def _in_interval(trip_dict):
+        date_str = trip_dict['checkout_datetime']
+        trip_datetime = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%f')
+        return start_datetime <= trip_datetime <= end_datetime
+    
+    return [trip for trip in trips_data if _in_interval(trip)]
 
 @app.route('/data', methods=['POST'])
 def load_data():
