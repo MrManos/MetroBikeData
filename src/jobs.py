@@ -25,13 +25,13 @@ def _generate_jid():
     logging.info(f"Generated job ID: {jid}")
     return jid
 
-def _instantiate_job(jid, status, gene1, gene2):
+def _instantiate_job(jid, status, job_params):
     """
     Create the job object description as a python dictionary. Requires the job id,
     status, genes, and operation parameters.
     """
     logging.info(f"Instantiating job with ID {jid}...")
-    job_dict = {'id': jid, 'status': status, 'gene1': gene1, 'gene2': gene2}
+    job_dict = {'id': jid, 'status': status, 'job parameters': job_params}
     logging.info("Job instantiated successfully.")
     return job_dict
 
@@ -48,11 +48,11 @@ def _queue_job(jid):
     logging.info("Job queued successfully.")
     return
 
-def add_job(gene1, gene2, status="submitted"):
+def add_job(job_params, status="submitted"):
     """Add a job to the redis queue."""
     logging.info("Adding job to the system...")
     jid = _generate_jid()
-    job_dict = _instantiate_job(jid, status, gene1, gene2)
+    job_dict = _instantiate_job(jid, status, job_params)
     _save_job(jid, job_dict)
     _queue_job(jid)
     logging.info("Job added successfully.")
@@ -68,7 +68,7 @@ def get_job_by_id(jid):
         return job_dict
     else:
         logging.error(f"No job found with ID {jid}.")
-        return None
+        return f"No job found with ID {jid}."
 
 def update_job_status(jid, status):
     """Update the status of job with job id `jid` to status `status`."""

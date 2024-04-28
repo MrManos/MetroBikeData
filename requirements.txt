@@ -5,3 +5,5 @@ hotqueue==0.2.8
 pytest==8.0.0
 matplotlib==3.7.5
 numpy==1.24.4
+folium==0.16.0
+Pillow==10.0.0

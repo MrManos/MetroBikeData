@@ -14,7 +14,8 @@ import json
 
 # Project defined
 from gcd_algorithm import great_circle_distance
-from jobs import trips_db, kiosk_db, get_job_by_id, res
+from jobs import trips_db, kiosk_db, get_job_by_id, res, add_job
+from data_lib import get_data, filter_by_date, filter_by_location
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -26,117 +27,7 @@ logging.basicConfig(level=log_level)
 trips_url = "https://data.austintexas.gov/resource/tyfh-5r8s.json?"
 kiosk_url = "https://data.austintexas.gov/resource/qd73-bsdg.json"
 
-def get_data(trips_db: redis.client.Redis, kiosk_db: redis.client.Redis) -> tuple:
-    """
-    Retrieve trips and kiosk data from Redis databases.
 
-    Args:
-        trips_db (redis.client.Redis): Redis connection for trips database.
-        kiosk_db (redis.client.Redis): Redis connection for kiosk database.
-
-    Returns:
-        tuple: A tuple containing trips data (list) and kiosk data (list).
-    """
-    # Retrieve trips data
-    trips_data = []
-    for key in sorted(trips_db.keys()):
-        trips_data.extend(json.loads(trips_db.get(key)))
-
-    # Retrieve kiosks data
-    kiosk_data = json.loads(kiosk_db.get('kiosks'))
-
-    return trips_data, kiosk_data
-
-def filter_by_date(trips_data: List[dict], start_datetime: datetime, end_datetime:datetime) -> List[dict]:
-    '''
-    Filters trip data within the interval [start_data, end_date]
-
-    Args:
-        trips_data: List of dicts, each dict is data for one trip
-        start_date: start date of the interval in TBD format
-        end_date: end date of the interval in TBD format
-
-    Returns:
-        List[dict]: filtered trips_data
-
-    Example:
-        trips_data, kiosk_data = get_data(trips_db, kiosk_db)
-        start_date = datetime(year=2024,month=1,day=1)
-        end_date = datetime(year=2024,month=2,day=10)
-        filter_by_date(trips_data, start_date, end_date)
-    '''
-
-    # helper function to check if trip is within time interval
-    def _in_interval(trip_dict):
-        date_str = trip_dict['checkout_datetime']
-        trip_datetime = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%f')
-        return start_datetime <= trip_datetime <= end_datetime
-    
-    return [trip for trip in trips_data if _in_interval(trip)]
-
-def filter_by_location(trips_data: List[dict], kiosk_data: List[dict], coordinates: tuple, radius:float, kisok_type: str) -> List[dict]:
-    '''
-    Filters trip data based on the distance of the checkout or return kiosk to a specified geolocation
-
-    Args:
-        trips_data: Each dict is data for one trip. Must have keys 'checkout_kiosk_id' and 'return_kiosk_id'
-        kiosk_data: Each dict is data for one kiosk. Must have keys 'kiosk_id', and 'location'
-        coordinates: (float, float) - the specified latitude and longitude
-        radius: distance in km around specified coordinates to filter by.
-        kiosk_type: Either 'checkout' or 'return'
-
-    Returns:
-        List[dict]: the filtered data
-
-    Example:
-        trips_data = filter_by_date(trips_data, start_date, end_date)
-        ut_coords  = (30.2850, -97.7335)
-        filtered = filter_by_location(trips_data,
-                        kiosk_data,
-                        coordinates=ut_coords,
-                        radius = 10, #km
-                        kisok_type='checkout')
-    '''
-    # precompute distance from each kiosk to the coordinates
-    kiosk_distances = {} # dict mapping kiosk id to distance from coordinates
-    lat1, long1 = coordinates
-    for kiosk_dict in kiosk_data:
-        kiosk_id = kiosk_dict['kiosk_id']
-        kiosk_loc = kiosk_dict['location']
-        lat2, long2 = float(kiosk_loc['latitude']), float(kiosk_loc['longitude'])
-        dist = great_circle_distance(lat1, long1, lat2, long2)
-        kiosk_distances[kiosk_id] = dist
-
-    # get the kiosk key (i.e wheter we filter by checkout or return kiosk)
-    if kisok_type == 'checkout':
-        kiosk_key = 'checkout_kiosk_id'
-    elif kisok_type == 'return':
-        kiosk_key = 'return_kiosk_id'
-    else:
-        raise ValueError('Please specify kiosk type either "checkout" or "return"')
-
-    # helper function to determin if kiosk is within radius
-    # also keeping track of missing/not missing kiosk ids for now
-    missing_ids = set()
-    not_missing_ids = set()
-    def _in_raidus(trip):
-        kiosk_id = trip[kiosk_key]
-        try:
-            dist = kiosk_distances[kiosk_id]
-            not_missing_ids.add(kiosk_id)
-            return dist <= radius
-        except KeyError:
-            missing_ids.add(kiosk_id)
-            return False
-    
-    # filter data with list comprehension
-    filtered_data = [trip for trip in trips_data if _in_raidus(trip)]
-
-    # report missing/not missing kiosk ids
-    logging.info(f'Missing Kiosk IDs {str(missing_ids)}')
-    logging.info(f'Not Missing Kiosk IDs {str(not_missing_ids)}')
-
-    return filtered_data
 
 @app.route('/data', methods=['POST'])
 def load_data():
@@ -159,7 +50,7 @@ def load_data():
         if rows <= 0:
             logging.error("The value of 'rows' must be greater than 0.")
             return "The value of 'rows' must be greater than 0.", 400
-    except ValueError:
+    except:
         logging.error("The value of 'rows' must be an integer.")
         return "The value of 'rows' must be an integer.", 400
 
@@ -175,10 +66,12 @@ def load_data():
 
     n = len(trips_data)//chunk_size     # number of chunks
     if n > 0:
+        # Store in chunks if there are more than 1M rows
         for i in range(n):
             trips_db.set(f'chunk {i}',json.dumps(trips_data[i*chunk_size:(i+1)*chunk_size]))
         trips_db.set(f'chunk {i+1}',json.dumps(trips_data[(i+1)*chunk_size:]))
     else:
+        # Store in single key called "trips" if less than 1M rows
         trips_db.set(f'trips',json.dumps(trips_data))
 
     # Load kiosk data to trips_db in chunks
@@ -196,7 +89,7 @@ def load_data():
 @app.route('/plot', methods=['GET'])
 def plot():
     """
-    Route to plot routes data for a given day between two kiosk locations to Redis via POST request.
+    Route to plot routes data for a given day between two kiosk locations to Redis via GET request.
 
     Example command: curl -o plot.png "localhost:5000/plot?day=01/31/2024&kiosk1=4055&kiosk2=2498"
     """
@@ -231,5 +124,125 @@ def plot():
 
     return send_file('plot.png', mimetype='image/png', as_attachment=True)
 
+@app.route('/kiosk_ids', methods = ['GET'])
+def get_kiosk_keys():
+    '''
+    Returns all the available kiosk IDs
+    '''
+    return [kiosk['kiosk_id'] for kiosk in get_data(trips_db, kiosk_db)[1]]
+
+@app.route('/jobs', methods = ['POST'])
+def submit_job():
+    '''
+    Check if a job request is valid and then submits the request.
+
+    job parameters
+    - start date
+    - end date
+    - checkout location
+    - checkout radius
+    - return location
+    - return radius
+    - plot type - e.g trip duration histogram, number of trips per day, etc.
+
+    curl -X POST localhost:5000/jobs -d '{"kiosk1":"4055", "kiosk2":"2498", "start_date":"01/31/2023", "end_date":"01/31/2024", "plot_type":"trip_duration"}' -H "Content-Type: application/json"
+    '''
+    
+    job_data = request.get_json()
+    allowed_params = ['kiosk1','kiosk2','start_date','end_date','latitude','longitude','radius','plot_type']
+    for param in job_data:
+        if param not in allowed_params:
+            return f"Invalid parameters. Allowed parameters are {allowed_params}.", 400
+    if 'plot_type' not in allowed_params:
+        return "Must include a plot type.", 400
+    
+    if job_data['plot_type'] == 'trip_duration':
+        if all(key in job_data for key in ['kiosk1', 'kiosk2', 'start_date', 'end_date']):
+            try:
+                int(job_data['kiosk1'])
+                int(job_data['kiosk2'])
+                datetime.strptime(job_data['start_date'], "%m/%d/%Y")
+                datetime.strptime(job_data['end_date'], "%m/%d/%Y")
+            except:
+                "Invalid job parameters.", 400
+            try:
+                job_info = add_job({
+                    'kiosk1': job_data['kiosk1'],
+                    'kiosk2': job_data['kiosk2'],
+                    'start_date': job_data['start_date'],
+                    'end_date': job_data['end_date']
+                })
+            except:
+                "Unable to add job.", 500
+        else:
+            return "Invalid parameters for trip duration plot. Please provide start_date, end_date, kiosk1, kiosk2.", 400
+    elif job_data['plot_type'] == 'trips_per_day':
+        if all(key in job_data for key in ['start_date', 'end_date', 'lat', 'long', 'radius']):
+            try:
+                float(job_data['radius'])
+                float(job_data['lat'])
+                float(job_data['long'])
+                datetime.strptime(job_data['start_date'], "%m/%d/%Y")
+                datetime.strptime(job_data['end_date'], "%m/%d/%Y")
+            except:
+                "Invalid job parameters.", 400
+
+            try:
+                job_info = add_job({
+                    'start_date': job_data['start_date'],
+                    'end_date': job_data['end_date'],
+                    'lat': job_data['lat'],
+                    'long': job_data['long'],
+                    'radius': job_data['radius']
+                })
+            except:
+                "Unable to add job.", 500
+        else:
+            return "Invalid parameters for trip duration plot. Please provide start_date, end_date, lat, long and radius.", 400
+    else:
+        return "Invalid plot type.", 400
+    
+    #return job_dict
+    # 
+
+    return job_info
+
+@app.route('/jobs/<job_id>', methods = ['GET'])
+def get_job(job_id):
+    '''
+    Returns job information associated with the job id.
+    '''
+    try:
+        return get_job_by_id(job_id)
+    except:
+        return f"Job {job_id} not found"
+    
+# @app.route('/results/<job_id>', methods = ['GET'])
+# def get_results(job_id):
+#     '''
+#     Returns job results associated with the job id. If the job
+#     has not yet completed, it will return message indicating the
+#     current status.
+#     '''
+
+#     # check if the job exists
+#     try:
+#         job_dict = get_job_by_id(job_id)
+#     except:
+#         return f"Job {job_id} not found."
+    
+#     # check if the job is complete
+#     status = job_dict['status']
+#     if job_dict['status'] != 'complete':
+#         return f"Job {job_id} not complete. Current status: {status}"
+
+#     # get results
+#     results = get_results_by_id(job_id)
+#     if not results:
+#         # no results found
+#         return f"Results for job {job_id} not found."
+#     else:
+#         return Response(results, mimetype="image/png'")
+        
 if __name__ == '__main__':
     app.run(debug=True, host = '0.0.0.0', port = 5000)
