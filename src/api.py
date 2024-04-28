@@ -1,14 +1,20 @@
+# standard library
+import logging
+import os
+from datetime import datetime
+from typing import List
+
+# 3rd party
+import matplotlib.pyplot as plt
+import numpy as np
+import redis
 import requests
 from flask import Flask, request, app, send_file
 import json
+
+# Project defined
+from gcd_algorithm import great_circle_distance
 from jobs import trips_db, kiosk_db, get_job_by_id, res
-import logging
-import os
-import redis
-from datetime import datetime
-import matplotlib.pyplot as plt
-import numpy as np
-from typing import List
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -54,7 +60,10 @@ def filter_by_date(trips_data: List[dict], start_datetime: datetime, end_datetim
         List[dict]: filtered trips_data
 
     Example:
-
+        trips_data, kiosk_data = get_data(trips_db, kiosk_db)
+        start_date = datetime(year=2024,month=1,day=1)
+        end_date = datetime(year=2024,month=2,day=10)
+        filter_by_date(trips_data, start_date, end_date)
     '''
 
     # helper function to check if trip is within time interval
@@ -64,6 +73,70 @@ def filter_by_date(trips_data: List[dict], start_datetime: datetime, end_datetim
         return start_datetime <= trip_datetime <= end_datetime
     
     return [trip for trip in trips_data if _in_interval(trip)]
+
+def filter_by_location(trips_data: List[dict], kiosk_data: List[dict], coordinates: tuple, radius:float, kisok_type: str) -> List[dict]:
+    '''
+    Filters trip data based on the distance of the checkout or return kiosk to a specified geolocation
+
+    Args:
+        trips_data: Each dict is data for one trip. Must have keys 'checkout_kiosk_id' and 'return_kiosk_id'
+        kiosk_data: Each dict is data for one kiosk. Must have keys 'kiosk_id', and 'location'
+        coordinates: (float, float) - the specified latitude and longitude
+        radius: distance in km around specified coordinates to filter by.
+        kiosk_type: Either 'checkout' or 'return'
+
+    Returns:
+        List[dict]: the filtered data
+
+    Example:
+        trips_data = filter_by_date(trips_data, start_date, end_date)
+        ut_coords  = (30.2850, -97.7335)
+        filtered = filter_by_location(trips_data,
+                        kiosk_data,
+                        coordinates=ut_coords,
+                        radius = 10, #km
+                        kisok_type='checkout')
+    '''
+    # precompute distance from each kiosk to the coordinates
+    kiosk_distances = {} # dict mapping kiosk id to distance from coordinates
+    lat1, long1 = coordinates
+    for kiosk_dict in kiosk_data:
+        kiosk_id = kiosk_dict['kiosk_id']
+        kiosk_loc = kiosk_dict['location']
+        lat2, long2 = float(kiosk_loc['latitude']), float(kiosk_loc['longitude'])
+        dist = great_circle_distance(lat1, long1, lat2, long2)
+        kiosk_distances[kiosk_id] = dist
+
+    # get the kiosk key (i.e wheter we filter by checkout or return kiosk)
+    if kisok_type == 'checkout':
+        kiosk_key = 'checkout_kiosk_id'
+    elif kisok_type == 'return':
+        kiosk_key = 'return_kiosk_id'
+    else:
+        raise ValueError('Please specify kiosk type either "checkout" or "return"')
+
+    # helper function to determin if kiosk is within radius
+    # also keeping track of missing/not missing kiosk ids for now
+    missing_ids = set()
+    not_missing_ids = set()
+    def _in_raidus(trip):
+        kiosk_id = trip[kiosk_key]
+        try:
+            dist = kiosk_distances[kiosk_id]
+            not_missing_ids.add(kiosk_id)
+            return dist <= radius
+        except KeyError:
+            missing_ids.add(kiosk_id)
+            return False
+    
+    # filter data with list comprehension
+    filtered_data = [trip for trip in trips_data if _in_raidus(trip)]
+
+    # report missing/not missing kiosk ids
+    logging.info(f'Missing Kiosk IDs {str(missing_ids)}')
+    logging.info(f'Not Missing Kiosk IDs {str(not_missing_ids)}')
+
+    return filtered_data
 
 @app.route('/data', methods=['POST'])
 def load_data():
