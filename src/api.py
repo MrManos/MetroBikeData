@@ -11,11 +11,14 @@ import redis
 import requests
 from flask import Flask, request, app, send_file
 import json
+import folium
+import io
+from PIL import Image
 
 # Project defined
 from gcd_algorithm import great_circle_distance
 from jobs import trips_db, kiosk_db, get_job_by_id, res, add_job
-from data_lib import get_data, filter_by_date, filter_by_location
+from data_lib import get_data, filter_by_date, filter_by_location, nearest_kiosk
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -26,8 +29,6 @@ logging.basicConfig(level=log_level)
 
 trips_url = "https://data.austintexas.gov/resource/tyfh-5r8s.json?"
 kiosk_url = "https://data.austintexas.gov/resource/qd73-bsdg.json"
-
-
 
 @app.route('/data', methods=['POST'])
 def load_data():
@@ -85,51 +86,76 @@ def load_data():
 
     return f'Loaded {len(trips_data)} trips and {len(kiosk_data)} kiosks into Redis databases.', 200
 
-
-@app.route('/plot', methods=['GET'])
-def plot():
-    """
-    Route to plot routes data for a given day between two kiosk locations to Redis via GET request.
-
-    Example command: curl -o plot.png "localhost:5000/plot?day=01/31/2024&kiosk1=4055&kiosk2=2498"
-    """
-    day = request.args.get('day')
-    k1 = request.args.get('kiosk1')
-    k2 = request.args.get('kiosk2')
-    # Check if parameters are provided and valid
-    if not all([day, k1, k2]):
-        logging.error("Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.")
-        return "Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.", 400
-
-    # Get all the trips on that day between the two kiosks
-    trips = []
-    day = datetime.strptime(day, "%m/%d/%Y")
-    trips_data, kiosk_data = get_data(trips_db,kiosk_db)
-    for trip in trips_data:
-        if 'checkout_kiosk_id' in trip and 'return_kiosk_id' in trip:
-            kiosk_set = {trip['checkout_kiosk_id'], trip['return_kiosk_id']}
-            trips_day = datetime.strptime(trip['checkout_date'][:10], "%Y-%m-%d")
-            if trips_day == day and kiosk_set == {k1, k2} or kiosk_set == {k2, k1}:
-                trips.append(trip)
-
-    # Get trip durations
-    trip_durations = [int(trip['trip_duration_minutes']) for trip in trips]
-
-    # Plot trip durations on histogram and save figure
-    plt.hist(trip_durations, bins=range(0, 31))
-    plt.xlabel('Trip Duration (minutes)')
-    plt.ylabel('Frequency')
-    plt.title('Histogram of Trip Durations')
-    plt.savefig('plot.png')
-
-    return send_file('plot.png', mimetype='image/png', as_attachment=True)
-
 @app.route('/kiosk_ids', methods = ['GET'])
 def get_kiosk_keys():
     '''
     Returns all the available kiosk IDs
     '''
     return [kiosk['kiosk_id'] for kiosk in get_data(trips_db, kiosk_db)[1]]
+
+@app.route('/show_nearest', methods = ['GET'])
+def show_nearest_kiosks():
+    """
+    Route to plot the n nearest kiosks to a given location.
+
+    Example route to paste into browser: localhost:5000/show_nearest?n=5&lat=30.2862730619728&long=-97.73937727490916
+    """
+    try:
+        n, lat, long = int(request.args.get('n')), float(request.args.get('lat')), float(request.args.get('long'))
+    except ValueError:
+        return "Invalid parameters. Please provide valid 'n', 'lat', and 'long' parameters.", 400
+    # Check if parameters are provided and valid
+    if not all([lat,long]):
+        logging.error("Missing parameters. Please provide 'n', 'lat', and 'long' parameters.")
+        return "Missing parameters. Please provide 'n', 'lat', and 'long' parameters.", 400
+    
+    # Get nearest kiosks
+    nearest = nearest_kiosk((lat,long),get_data(trips_db,kiosk_db)[1],n)
+
+    # Use Folium to output a map with HTML
+    map = folium.Map()
+    locations = [(float(kiosk['location']['latitude']), float(kiosk['location']['longitude'])) for kiosk in nearest]
+    marker_colors = ['red' if kiosk['kiosk_status'] != 'active' else 'green' for kiosk in nearest]
+
+    # Add markers for n closest kiosks
+    for loc,color in zip(locations,marker_colors):
+        folium.Marker(location=loc, icon=folium.Icon(color=color)).add_to(map)
+    
+    # Requested location
+    folium.Marker(location=(lat,long), icon=folium.Icon(color='blue')).add_to(map)
+
+    # Fit the map to the bounds of the markers
+    map.fit_bounds(locations)
+
+    # Save map
+    map.save("map.html")
+
+    return send_file('map.html', mimetype='text/html', as_attachment=False)
+    
+@app.route('/nearest', methods = ['GET'])
+def get_nearest_kiosks():
+    """
+    Route to print the n nearest kiosks to a given location.
+
+    Example command: curl "localhost:5000/nearest?n=5&lat=30.2862730619728&long=-97.73937727490916"
+    """
+    try:
+        n, lat, long = int(request.args.get('n')), float(request.args.get('lat')), float(request.args.get('long'))
+    except ValueError:
+        return "Invalid parameters. Please provide valid 'n', 'lat', and 'long' parameters.", 400
+    # Check if parameters are provided and valid
+    if not all([lat,long]):
+        logging.error("Missing parameters. Please provide 'n', 'lat', and 'long' parameters.")
+        return "Missing parameters. Please provide 'n', 'lat', and 'long' parameters.", 400
+    
+    # Get nearest kiosks
+    nearest = nearest_kiosk((lat,long),get_data(trips_db,kiosk_db)[1],n)
+    response_string = "Nearest Kiosks:\n"
+    for kiosk in nearest:
+        distance = great_circle_distance(lat, long, float(kiosk['location']['latitude']), float(kiosk['location']['longitude']))
+        response_string += f"- Kiosk Name: {kiosk['kiosk_name']}, Kiosk ID: {kiosk['kiosk_id']}, Distance: {distance:.2f} km, Status: {kiosk['kiosk_status']} \n"
+
+    return response_string
 
 @app.route('/jobs', methods = ['POST'])
 def submit_job():
@@ -176,6 +202,7 @@ def submit_job():
                 "Unable to add job.", 500
         else:
             return "Invalid parameters for trip duration plot. Please provide start_date, end_date, kiosk1, kiosk2.", 400
+    
     elif job_data['plot_type'] == 'trips_per_day':
         if all(key in job_data for key in ['start_date', 'end_date', 'lat', 'long', 'radius']):
             try:
@@ -244,5 +271,43 @@ def get_job(job_id):
 #     else:
 #         return Response(results, mimetype="image/png'")
         
+# @app.route('/plot', methods=['GET'])
+# def plot():
+#     """
+#     Route to plot routes data for a given day between two kiosk locations to Redis via GET request.
+
+#     Example command: curl -o plot.png "localhost:5000/plot?day=01/31/2024&kiosk1=4055&kiosk2=2498"
+#     """
+#     day = request.args.get('day')
+#     k1 = request.args.get('kiosk1')
+#     k2 = request.args.get('kiosk2')
+#     # Check if parameters are provided and valid
+#     if not all([day, k1, k2]):
+#         logging.error("Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.")
+#         return "Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.", 400
+
+#     # Get all the trips on that day between the two kiosks
+#     trips = []
+#     day = datetime.strptime(day, "%m/%d/%Y")
+#     trips_data, kiosk_data = get_data(trips_db,kiosk_db)
+#     for trip in trips_data:
+#         if 'checkout_kiosk_id' in trip and 'return_kiosk_id' in trip:
+#             kiosk_set = {trip['checkout_kiosk_id'], trip['return_kiosk_id']}
+#             trips_day = datetime.strptime(trip['checkout_date'][:10], "%Y-%m-%d")
+#             if trips_day == day and kiosk_set == {k1, k2} or kiosk_set == {k2, k1}:
+#                 trips.append(trip)
+
+#     # Get trip durations
+#     trip_durations = [int(trip['trip_duration_minutes']) for trip in trips]
+
+#     # Plot trip durations on histogram and save figure
+#     plt.hist(trip_durations, bins=range(0, 31))
+#     plt.xlabel('Trip Duration (minutes)')
+#     plt.ylabel('Frequency')
+#     plt.title('Histogram of Trip Durations')
+#     plt.savefig('plot.png')
+
+#     return send_file('plot.png', mimetype='image/png', as_attachment=True)
+
 if __name__ == '__main__':
     app.run(debug=True, host = '0.0.0.0', port = 5000)

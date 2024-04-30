@@ -31,6 +31,38 @@ def get_data(trips_db: redis.client.Redis, kiosk_db: redis.client.Redis) -> tupl
 
     return trips_data, kiosk_data
 
+def get_trips(trips_db: redis.client.Redis) -> tuple:
+    """
+    Retrieve trips and kiosk data from Redis databases.
+
+    Args:
+        trips_db (redis.client.Redis): Redis connection for trips database.
+
+    Returns:
+        List[dict]: Trips data
+    """
+    # Retrieve trips data
+    trips_data = []
+    for key in sorted(trips_db.keys()):
+        trips_data.extend(json.loads(trips_db.get(key)))
+
+    return trips_data
+
+def get_kiosk(kiosk_db: redis.client.Redis) -> tuple:
+    """
+    Retrieve kiosk data from Redis databases.
+
+    Args:
+        kiosk_db (redis.client.Redis): Redis connection for kiosk database.
+
+    Returns:
+        List[dict]: kiosk data
+    """
+    # Retrieve trips data
+    kiosk_data = json.loads(kiosk_db.get('kiosks'))
+    return kiosk_data
+
+
 def filter_by_date(trips_data: List[dict], start_datetime: datetime, end_datetime:datetime) -> List[dict]:
     '''
     Filters trip data within the interval [start_data, end_date]
@@ -113,3 +145,26 @@ def filter_by_location(trips_data: List[dict], kiosk_data: List[dict], coordinat
     logging.info(f"Missing kiosk IDs {missing_ids}")
 
     return filtered_data
+
+def nearest_kiosk( coordinates: tuple, kiosk_data: List[dict], n_kiosks) -> dict:
+    '''
+    Tells the user the nearest kiosk locations 
+    
+    Args:
+    location[tuple]: The coordinates the user inputs
+
+    Returns:
+
+    (will name the variable here) [dict]: Returns the name/location of nearby kiosks and their eclidian distance magnitude 
+    '''
+    lat_1,long_1 = coordinates
+
+    def dist_from_point(kiosk_dict):
+        kiosk_coords = kiosk_dict['location']
+        lat = float(kiosk_coords['latitude'])
+        long = float(kiosk_coords['longitude'])
+        return great_circle_distance(lat,long,lat_1,long_1)
+    
+    sorted_kiosks = sorted(kiosk_data, key = dist_from_point )
+
+    return sorted_kiosks[0:n_kiosks]
