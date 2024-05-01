@@ -1,6 +1,6 @@
 import redis
 import json
-import datetime
+from datetime import datetime
 from typing import List
 from gcd_algorithm import great_circle_distance
 import logging
@@ -9,7 +9,6 @@ import logging
 TODO: Filter by kiosk, have option to check if either kiosk is within the radius, or just the checkout/return.
 '''
  
-
 def get_data(trips_db: redis.client.Redis, kiosk_db: redis.client.Redis) -> tuple:
     """
     Retrieve trips and kiosk data from Redis databases.
@@ -48,7 +47,7 @@ def get_trips(trips_db: redis.client.Redis) -> tuple:
 
     return trips_data
 
-def get_kiosk(kiosk_db: redis.client.Redis) -> tuple:
+def get_kiosks(kiosk_db: redis.client.Redis) -> tuple:
     """
     Retrieve kiosk data from Redis databases.
 
@@ -146,7 +145,7 @@ def filter_by_location(trips_data: List[dict], kiosk_data: List[dict], coordinat
 
     return filtered_data
 
-def nearest_kiosk( coordinates: tuple, kiosk_data: List[dict], n_kiosks) -> dict:
+def nearest_kiosks( coordinates: tuple, kiosk_data: List[dict], n_kiosks) -> dict:
     '''
     Tells the user the nearest kiosk locations 
     

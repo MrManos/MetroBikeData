@@ -18,7 +18,7 @@ from PIL import Image
 # Project defined
 from gcd_algorithm import great_circle_distance
 from jobs import trips_db, kiosk_db, get_job_by_id, res, add_job
-from data_lib import get_data, filter_by_date, filter_by_location, nearest_kiosk
+from data_lib import filter_by_date, filter_by_location, nearest_kiosks, get_kiosks, get_trips
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -90,8 +90,10 @@ def load_data():
 def get_kiosk_keys():
     '''
     Returns all the available kiosk IDs
+
+    Example command: curl localhost:5000/kiosk_ids
     '''
-    return [kiosk['kiosk_id'] for kiosk in get_data(trips_db, kiosk_db)[1]]
+    return str([kiosk['kiosk_id'] for kiosk in get_kiosks(kiosk_db)])
 
 @app.route('/show_nearest', methods = ['GET'])
 def show_nearest_kiosks():
@@ -110,7 +112,7 @@ def show_nearest_kiosks():
         return "Missing parameters. Please provide 'n', 'lat', and 'long' parameters.", 400
     
     # Get nearest kiosks
-    nearest = nearest_kiosk((lat,long),get_data(trips_db,kiosk_db)[1],n)
+    nearest = nearest_kiosks((lat,long),get_kiosks(kiosk_db),n)
 
     # Use Folium to output a map with HTML
     map = folium.Map()
@@ -149,7 +151,7 @@ def get_nearest_kiosks():
         return "Missing parameters. Please provide 'n', 'lat', and 'long' parameters.", 400
     
     # Get nearest kiosks
-    nearest = nearest_kiosk((lat,long),get_data(trips_db,kiosk_db)[1],n)
+    nearest = nearest_kiosks((lat,long),get_kiosks(kiosk_db),n)
     response_string = "Nearest Kiosks:\n"
     for kiosk in nearest:
         distance = great_circle_distance(lat, long, float(kiosk['location']['latitude']), float(kiosk['location']['longitude']))
@@ -165,10 +167,9 @@ def submit_job():
     job parameters
     - start date
     - end date
-    - checkout location
-    - checkout radius
-    - return location
-    - return radius
+    - radius
+    - latitude
+    - longitude
     - plot type - e.g trip duration histogram, number of trips per day, etc.
 
     curl -X POST localhost:5000/jobs -d '{"kiosk1":"4055", "kiosk2":"2498", "start_date":"01/31/2023", "end_date":"01/31/2024", "plot_type":"trip_duration"}' -H "Content-Type: application/json"
@@ -179,7 +180,7 @@ def submit_job():
     for param in job_data:
         if param not in allowed_params:
             return f"Invalid parameters. Allowed parameters are {allowed_params}.", 400
-    if 'plot_type' not in allowed_params:
+    if 'plot_type' not in job_data:
         return "Must include a plot type.", 400
     
     if job_data['plot_type'] == 'trip_duration':
@@ -244,6 +245,41 @@ def get_job(job_id):
     except:
         return f"Job {job_id} not found"
     
+@app.route('/help', methods=['GET'])
+def help_route() -> str:
+    """
+    Displays a menu for the user to know the commands of the program.
+    """
+    help_message = '''
+    These are the available routes and their functionalities:
+
+    /data (POST):
+        Load data (trips and kiosks) into Redis databases.
+        Example: curl -X POST localhost:5000/data -d '{"rows":"100000"}' -H "Content-Type: application/json"
+
+    /kiosk_ids (GET):
+        Get a list of available kiosk IDs.
+        Example: curl localhost:5000/kiosk_ids
+
+    /show_nearest (GET):
+        Plot the n nearest kiosks to a given location on a map and return the map as an HTML file.
+        Example: localhost:5000/show_nearest?n=5&lat=30.2862730619728&long=-97.73937727490916
+
+    /nearest (GET):
+        Print the n nearest kiosks to a given location.
+        Example: curl "localhost:5000/nearest?n=5&lat=30.2862730619728&long=-97.73937727490916"
+
+    /jobs (POST):
+        Submit a job request with various parameters (e.g., start date, end date, checkout location, return location, plot type).
+        Example: curl -X POST localhost:5000/jobs -d '{"kiosk1":"4055", "kiosk2":"2498", "start_date":"01/31/2023", "end_date":"01/31/2024", "plot_type":"trip_duration"}' -H "Content-Type: application/json"
+
+    /jobs/<job_id> (GET):
+        Get job information associated with the given job ID.
+        Example: curl localhost:5000/jobs/1234
+    '''
+    return help_message
+
+    
 # @app.route('/results/<job_id>', methods = ['GET'])
 # def get_results(job_id):
 #     '''
@@ -270,44 +306,6 @@ def get_job(job_id):
 #         return f"Results for job {job_id} not found."
 #     else:
 #         return Response(results, mimetype="image/png'")
-        
-# @app.route('/plot', methods=['GET'])
-# def plot():
-#     """
-#     Route to plot routes data for a given day between two kiosk locations to Redis via GET request.
-
-#     Example command: curl -o plot.png "localhost:5000/plot?day=01/31/2024&kiosk1=4055&kiosk2=2498"
-#     """
-#     day = request.args.get('day')
-#     k1 = request.args.get('kiosk1')
-#     k2 = request.args.get('kiosk2')
-#     # Check if parameters are provided and valid
-#     if not all([day, k1, k2]):
-#         logging.error("Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.")
-#         return "Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.", 400
-
-#     # Get all the trips on that day between the two kiosks
-#     trips = []
-#     day = datetime.strptime(day, "%m/%d/%Y")
-#     trips_data, kiosk_data = get_data(trips_db,kiosk_db)
-#     for trip in trips_data:
-#         if 'checkout_kiosk_id' in trip and 'return_kiosk_id' in trip:
-#             kiosk_set = {trip['checkout_kiosk_id'], trip['return_kiosk_id']}
-#             trips_day = datetime.strptime(trip['checkout_date'][:10], "%Y-%m-%d")
-#             if trips_day == day and kiosk_set == {k1, k2} or kiosk_set == {k2, k1}:
-#                 trips.append(trip)
-
-#     # Get trip durations
-#     trip_durations = [int(trip['trip_duration_minutes']) for trip in trips]
-
-#     # Plot trip durations on histogram and save figure
-#     plt.hist(trip_durations, bins=range(0, 31))
-#     plt.xlabel('Trip Duration (minutes)')
-#     plt.ylabel('Frequency')
-#     plt.title('Histogram of Trip Durations')
-#     plt.savefig('plot.png')
-
-#     return send_file('plot.png', mimetype='image/png', as_attachment=True)
 
 if __name__ == '__main__':
     app.run(debug=True, host = '0.0.0.0', port = 5000)
