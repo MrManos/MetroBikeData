@@ -15,6 +15,6 @@ spec:
           path: "/"
           backend:
             service:
-              name: metorbike-flask-nodeport-service
+              name: metrobike-flask-nodeport-service
               port:
                 number: 5000
