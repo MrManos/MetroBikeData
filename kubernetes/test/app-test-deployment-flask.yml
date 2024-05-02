@@ -17,6 +17,7 @@ spec:
     spec:
       containers:
         - name: flask-app
+          imagePullPolicy: Always
           image: williamzhang0306/metro_bike_app:dev
           command: [python3, api.py]
           ports:
