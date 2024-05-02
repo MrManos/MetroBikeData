@@ -18,7 +18,7 @@ spec:
       containers:
         - name: worker
           imagePullPolicy: Always
-          image: williamzhang0306/metro_bike_app:dev
+          image: williamzhang0306/metro_bike_app:release
           command: [python3, worker.py]
           env:
             - name: REDIS_IP
