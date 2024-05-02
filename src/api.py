@@ -89,18 +89,52 @@ def load_data():
 
 
     elif request.method == 'DELETE':
-        trips_deleted = 0
         for key in trips_db.keys():
             trips_db.delete(key)
-            trips_deleted += 1
 
-        kiosks_deleted = 0
         for key in kiosk_db.keys():
             kiosk_db.delete(key)
-            kiosks_deleted += 1
 
-        return f"Deleted {trips_deleted} trips and {kiosks_deleted} kiosks"
+        return f"Deleted trips and kiosks data"
 
+@app.route('/trips', methods = ['GET'])
+def get_trip_data():
+    '''
+    Returns filtered trip data
+
+    curl "localhost:5000/trips?start_date=2024-1-3&end_date=2024-1-23&latitude=30.286&longitude=-97.739&radius=5"
+    '''
+    # default values
+    arg_data = {
+        'start_date': '2000-01-01',
+        'end_date': '2999-12-31',
+        'latitude': '30.286',
+        'longitude': '-97.739',
+        'radius' : '50'
+    }
+
+    args = ['start_date', 'end_date', 'latitude', 'longitude', 'radius']
+
+    for arg in args:
+        if request.args.get(arg): # try to get from request
+            arg_data[arg] = request.args.get(arg)
+    
+    # parse args
+    try:
+        start_date = datetime.strptime(arg_data['start_date'], '%Y-%m-%d')
+        end_date = datetime.strptime(arg_data['end_date'], '%Y-%m-%d')
+        lat = float(arg_data['latitude'])
+        long = float(arg_data['longitude'])
+        radius = float(arg_data['radius'])
+    except:
+        return 'Invalid Query Parameter Format'
+    
+    # get and filter trip data
+    trips = get_trips(trips_db)
+    kiosks = get_kiosks(kiosk_db)
+    trips = filter_by_date(trips, start_date, end_date)
+    trips = filter_by_location(trips, kiosks, (lat,long), radius)
+    return trips
 
 @app.route('/kiosk_ids', methods = ['GET'])
 def get_kiosk_keys():
