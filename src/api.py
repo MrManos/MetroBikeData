@@ -30,7 +30,7 @@ logging.basicConfig(level=log_level)
 trips_url = "https://data.austintexas.gov/resource/tyfh-5r8s.json?"
 kiosk_url = "https://data.austintexas.gov/resource/qd73-bsdg.json"
 
-@app.route('/data', methods=['POST'])
+@app.route('/data', methods=['POST', 'DELETE'])
 def load_data():
     """
     Route to load data to Redis via POST request.
@@ -40,51 +40,67 @@ def load_data():
     Returns:
         tuple: A tuple containing a message indicating the success or failure of data loading (str) and an HTTP status code.
     """
-    params = request.get_json()
+    if request.method == 'POST':
+        params = request.get_json()
 
-    # Check if 'rows' parameter is provided and valid
-    if 'rows' not in params:
-        logging.error("Missing parameters. Please provide 'rows' parameter.")
-        return "Missing parameters. Please provide 'rows' parameter.", 400
-    try:
-        rows = int(params['rows'])
-        if rows <= 0:
-            logging.error("The value of 'rows' must be greater than 0.")
-            return "The value of 'rows' must be greater than 0.", 400
-    except:
-        logging.error("The value of 'rows' must be an integer.")
-        return "The value of 'rows' must be an integer.", 400
+        # Check if 'rows' parameter is provided and valid
+        if 'rows' not in params:
+            logging.error("Missing parameters. Please provide 'rows' parameter.")
+            return "Missing parameters. Please provide 'rows' parameter.", 400
+        try:
+            rows = int(params['rows'])
+            if rows <= 0:
+                logging.error("The value of 'rows' must be greater than 0.")
+                return "The value of 'rows' must be greater than 0.", 400
+        except:
+            logging.error("The value of 'rows' must be an integer.")
+            return "The value of 'rows' must be an integer.", 400
 
-    # Load trips data to trips_db in chunks
-    chunk_size = 1000000
-    response = requests.get(trips_url + f"$limit={rows}&$order=checkout_date DESC")
-    if response.status_code != 200:
-        logging.error("Failed to load data to Redis")
-        return 'Failed to load data to Redis', 500
-    trips_db.flushall()
-    trips_data = response.json()
-    logging.debug(f"Number of trips retrieved: {len(trips_data)}")  
+        # Load trips data to trips_db in chunks
+        chunk_size = 1000000
+        response = requests.get(trips_url + f"$limit={rows}&$order=checkout_date DESC")
+        if response.status_code != 200:
+            logging.error("Failed to load data to Redis")
+            return 'Failed to load data to Redis', 500
+        trips_db.flushall()
+        trips_data = response.json()
+        logging.debug(f"Number of trips retrieved: {len(trips_data)}")  
 
-    n = len(trips_data)//chunk_size     # number of chunks
-    if n > 0:
-        # Store in chunks if there are more than 1M rows
-        for i in range(n):
-            trips_db.set(f'chunk {i}',json.dumps(trips_data[i*chunk_size:(i+1)*chunk_size]))
-        trips_db.set(f'chunk {i+1}',json.dumps(trips_data[(i+1)*chunk_size:]))
-    else:
-        # Store in single key called "trips" if less than 1M rows
-        trips_db.set(f'trips',json.dumps(trips_data))
+        n = len(trips_data)//chunk_size     # number of chunks
+        if n > 0:
+            # Store in chunks if there are more than 1M rows
+            for i in range(n):
+                trips_db.set(f'chunk {i}',json.dumps(trips_data[i*chunk_size:(i+1)*chunk_size]))
+            trips_db.set(f'chunk {i+1}',json.dumps(trips_data[(i+1)*chunk_size:]))
+        else:
+            # Store in single key called "trips" if less than 1M rows
+            trips_db.set(f'trips',json.dumps(trips_data))
 
-    # Load kiosk data to trips_db in chunks
-    response = requests.get(kiosk_url)
-    if response.status_code != 200:
-        logging.error("Failed to load data to Redis")
-        return 'Failed to load data to Redis', 500
-    kiosk_data = response.json()
-    logging.debug(f"Number of kiosks retrieved: {len(kiosk_data)}")
-    kiosk_db.set('kiosks', json.dumps(kiosk_data))
+        # Load kiosk data to trips_db in chunks
+        response = requests.get(kiosk_url)
+        if response.status_code != 200:
+            logging.error("Failed to load data to Redis")
+            return 'Failed to load data to Redis', 500
+        kiosk_data = response.json()
+        logging.debug(f"Number of kiosks retrieved: {len(kiosk_data)}")
+        kiosk_db.set('kiosks', json.dumps(kiosk_data))
 
-    return f'Loaded {len(trips_data)} trips and {len(kiosk_data)} kiosks into Redis databases.', 200
+        return f'Loaded {len(trips_data)} trips and {len(kiosk_data)} kiosks into Redis databases.', 200
+
+
+    elif request.method == 'DELETE':
+        trips_deleted = 0
+        for key in trips_db.keys():
+            trips_db.delete(key)
+            trips_deleted += 1
+
+        kiosks_deleted = 0
+        for key in kiosk_db.keys():
+            kiosk_db.delete(key)
+            kiosks_deleted += 1
+
+        return f"Deleted {trips_deleted} trips and {kiosks_deleted} kiosks"
+
 
 @app.route('/kiosk_ids', methods = ['GET'])
 def get_kiosk_keys():
