@@ -9,7 +9,7 @@ services:
       - ./data:/data
     command: ["--save", "1", "1"]
   api:
-    image: api
+    image: williamzhang0306/metro_bike_app:dev
     ports:
       - 5000:5000
     build:
@@ -22,7 +22,7 @@ services:
       - LOG_LEVEL=INFO
       - REDIS_IP=redis-db
   worker:
-    image: worker
+    image: williamzhang0306/metro_bike_app:dev
     build:
       context: ./
       dockerfile: Dockerfile
