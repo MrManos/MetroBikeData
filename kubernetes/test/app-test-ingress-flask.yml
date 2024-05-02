@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: "williamzhang.coe332.tacc.cloud"
+  - host: "metrobike.coe332.tacc.cloud"
     http:
         paths:
         - pathType: Prefix
