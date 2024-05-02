@@ -81,3 +81,11 @@ def update_job_status(jid, status):
     else:
         logging.error(f"Job with ID {jid} not found.")
         raise Exception("Job not found")
+    
+def store_job_result(jid, result_data):
+    '''Store job results in the results database'''
+    res.set(jid, result_data)
+
+def get_results_by_id(jid):
+    '''Returns the job result for a given job id'''
+    return res.get(jid)

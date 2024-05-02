@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import redis
 import requests
-from flask import Flask, request, app, send_file
+from flask import Flask, request, app, send_file, Response
 import json
 import folium
 import io
@@ -17,7 +17,7 @@ from PIL import Image
 
 # Project defined
 from gcd_algorithm import great_circle_distance
-from jobs import trips_db, kiosk_db, get_job_by_id, res, add_job
+from jobs import trips_db, kiosk_db, get_job_by_id, res, add_job, get_results_by_id
 from data_lib import filter_by_date, filter_by_location, nearest_kiosks, get_kiosks, get_trips
 
 # Initialize Flask app
@@ -173,6 +173,7 @@ def submit_job():
     - plot type - e.g trip duration histogram, number of trips per day, etc.
 
     curl -X POST localhost:5000/jobs -d '{"kiosk1":"4055", "kiosk2":"2498", "start_date":"01/31/2023", "end_date":"01/31/2024", "plot_type":"trip_duration"}' -H "Content-Type: application/json"
+    curl -X POST localhost:5000/jobs -d '{"start_date": "01/31/2023", "end_date":"01/31/2024", "latitude":"30.286", "longitude":"-97.739", "radius":"3", "plot_type":"trips_per_day"}' -H "Content-Type: application/json"
     '''
     
     job_data = request.get_json()
@@ -191,40 +192,42 @@ def submit_job():
                 datetime.strptime(job_data['start_date'], "%m/%d/%Y")
                 datetime.strptime(job_data['end_date'], "%m/%d/%Y")
             except:
-                "Invalid job parameters.", 400
+                return "Invalid job parameters.", 400
             try:
                 job_info = add_job({
                     'kiosk1': job_data['kiosk1'],
                     'kiosk2': job_data['kiosk2'],
                     'start_date': job_data['start_date'],
-                    'end_date': job_data['end_date']
+                    'end_date': job_data['end_date'],
+                    'plot_type': job_data['plot_type']
                 })
             except:
-                "Unable to add job.", 500
+                return "Unable to add job.", 500
         else:
             return "Invalid parameters for trip duration plot. Please provide start_date, end_date, kiosk1, kiosk2.", 400
     
     elif job_data['plot_type'] == 'trips_per_day':
-        if all(key in job_data for key in ['start_date', 'end_date', 'lat', 'long', 'radius']):
+        if all(key in job_data for key in ['start_date', 'end_date', 'latitude', 'longitude', 'radius']):
             try:
                 float(job_data['radius'])
-                float(job_data['lat'])
-                float(job_data['long'])
+                float(job_data['latitude'])
+                float(job_data['longitude'])
                 datetime.strptime(job_data['start_date'], "%m/%d/%Y")
                 datetime.strptime(job_data['end_date'], "%m/%d/%Y")
             except:
-                "Invalid job parameters.", 400
+                return "Invalid job parameters.", 400
 
             try:
                 job_info = add_job({
                     'start_date': job_data['start_date'],
                     'end_date': job_data['end_date'],
-                    'lat': job_data['lat'],
-                    'long': job_data['long'],
-                    'radius': job_data['radius']
+                    'lat': job_data['latitude'],
+                    'long': job_data['longitude'],
+                    'radius': job_data['radius'],
+                    'plot_type': job_data['plot_type']
                 })
             except:
-                "Unable to add job.", 500
+                return "Unable to add job.", 500
         else:
             return "Invalid parameters for trip duration plot. Please provide start_date, end_date, lat, long and radius.", 400
     else:
@@ -280,32 +283,32 @@ def help_route() -> str:
     return help_message
 
     
-# @app.route('/results/<job_id>', methods = ['GET'])
-# def get_results(job_id):
-#     '''
-#     Returns job results associated with the job id. If the job
-#     has not yet completed, it will return message indicating the
-#     current status.
-#     '''
+@app.route('/results/<job_id>', methods = ['GET'])
+def get_results(job_id):
+    '''
+    Returns job results associated with the job id. If the job
+    has not yet completed, it will return message indicating the
+    current status.
+    '''
 
-#     # check if the job exists
-#     try:
-#         job_dict = get_job_by_id(job_id)
-#     except:
-#         return f"Job {job_id} not found."
+    # check if the job exists
+    try:
+        job_dict = get_job_by_id(job_id)
+    except:
+        return f"Job {job_id} not found."
     
-#     # check if the job is complete
-#     status = job_dict['status']
-#     if job_dict['status'] != 'complete':
-#         return f"Job {job_id} not complete. Current status: {status}"
+    # check if the job is complete
+    status = job_dict['status']
+    if job_dict['status'] != 'complete':
+        return f"Job {job_id} not complete. Current status: {status}"
 
-#     # get results
-#     results = get_results_by_id(job_id)
-#     if not results:
-#         # no results found
-#         return f"Results for job {job_id} not found."
-#     else:
-#         return Response(results, mimetype="image/png'")
+    # get results
+    results = get_results_by_id(job_id)
+    if not results:
+        # no results found
+        return f"Results for job {job_id} not found."
+    else:
+        return Response(results, mimetype="image/png'")
 
 if __name__ == '__main__':
     app.run(debug=True, host = '0.0.0.0', port = 5000)
