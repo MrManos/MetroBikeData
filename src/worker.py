@@ -36,7 +36,7 @@ def process_job(job_id):
     job_params = jobs.get_job_by_id(job_id)['job parameters']
     job_type = job_params['plot_type']
     if job_type == 'trip_duration':
-        trip_duration_histogram_job(job_params)
+        result = trip_duration_histogram_job(job_params)
         
     elif job_type == 'trips_per_day':
         result = trips_per_day_job(job_params)
@@ -59,35 +59,41 @@ def trip_duration_histogram_job(job_parameters):
 
     Example command: curl -o plot.png "localhost:5000/plot?day=01/31/2024&kiosk1=4055&kiosk2=2498"
     """
-    day = job_parameters['day']
+    start_date = datetime(year=2023, month=1, day=31) if job_parameters['start_date'] == 'default' else datetime.strptime(job_parameters['start_date'], "%m/%d/%Y")
+    end_date = datetime(year=2024, month=1, day=31) if job_parameters['end_date'] == 'default' else datetime.strptime(job_parameters['end_date'], "%m/%d/%Y")
+
     k1 = job_parameters['kiosk1']
     k2 = job_parameters['kiosk2']
     # Check if parameters are provided and valid
-    if not all([day, k1, k2]):
+    if not all([start_date,end_date, k1, k2]):
         logging.error("Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.")
         return "Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.", 400
 
     # Get all the trips on that day between the two kiosks
     trips = []
-    day = datetime.strptime(day, "%m/%d/%Y")
-    trips_data = get_trips(trips_db)
+    #day = datetime.strptime(day, "%m/%d/%Y")
+
+    trips_data = filter_by_date(get_trips(trips_db), start_date, end_date)
     for trip in trips_data:
         if 'checkout_kiosk_id' in trip and 'return_kiosk_id' in trip:
             kiosk_set = {trip['checkout_kiosk_id'], trip['return_kiosk_id']}
             trips_day = datetime.strptime(trip['checkout_date'][:10], "%Y-%m-%d")
-            if trips_day == day and kiosk_set == {k1, k2} or kiosk_set == {k2, k1}:
+            if kiosk_set == {k1, k2} or kiosk_set == {k2, k1}:
                 trips.append(trip)
 
     # Get trip durations
     trip_durations = [int(trip['trip_duration_minutes']) for trip in trips]
 
     # Plot trip durations on histogram and save figure
+    fig = plt.figure()
     plt.hist(trip_durations, bins=range(0, 31))
     plt.xlabel('Trip Duration (minutes)')
     plt.ylabel('Frequency')
     plt.title('Histogram of Trip Durations')
-    plt.savefig('plot.png')
-    return 
+    #plt.savefig('plot.png')
+    if type(serialize_fig(fig)) == None:
+        logging.warning('serialized fig is none')
+    return serialize_fig(fig)
 
 def trips_per_day_job(job_data:dict):
     '''
@@ -100,7 +106,7 @@ def trips_per_day_job(job_data:dict):
         - 'long',
         - 'radius'
     
-    Returns
+    Returns bytes data for a png image. Image is of a plot of the number of trips per day. 
     '''
     # get data
     trips_data, kiosk_data = get_trips(trips_db), get_kiosks(kiosk_db)
@@ -136,12 +142,12 @@ def trips_per_day_job(job_data:dict):
     plt.xlabel('Date')
     plt.ylabel('Number of Trips')
     plt.title(f"Trips per day {start_date.strftime('%m/%d/%y')} - {end_date.strftime('%m/%d/%y')}, Location: ({lat:.3f}, {long:.3f}), Radius: {radius}")
-    plt.show()
+    #plt.show()
 
     return serialize_fig(fig)
 
 
-def serialize_fig(figure):
+def serialize_fig(figure)->bytes:
     '''
     Converts a matplotlibfigure into png binary data that
     can be stored in redis.
