@@ -1,0 +1,12 @@
+---
+kind: Service
+apiVersion: v1
+metadata:
+    name: metrobike-flask-nodeport-service
+spec:
+    type: NodePort
+    selector:
+        app: flask-app
+    ports:
+        - port: 5000
+          targetPort: 5000

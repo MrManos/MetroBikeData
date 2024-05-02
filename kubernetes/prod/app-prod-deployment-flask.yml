@@ -1,0 +1,27 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-deployment
+  labels:
+    app: flask-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flask-app
+  template:
+    metadata:
+      labels:
+        app: flask-app
+    spec:
+      containers:
+        - name: flask-app
+          image: williamzhang0306/metro_bike_app:dev
+          command: [python3, api.py]
+          ports:
+            - name: http
+              containerPort: 5000
+          env:
+            - name: REDIS_IP
+              value: "metrobikeapp-redis-service"

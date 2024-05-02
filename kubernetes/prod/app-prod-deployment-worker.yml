@@ -1,0 +1,25 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-deployment
+  labels:
+    app: worker-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-app
+  template:
+    metadata:
+      labels:
+        app: worker-app
+    spec:
+      containers:
+        - name: worker
+          imagePullPolicy: Always
+          image: williamzhang0306/metro_bike_app:dev
+          command: [python3, worker.py]
+          env:
+            - name: REDIS_IP
+              value: "metrobikeapp-redis-service"
