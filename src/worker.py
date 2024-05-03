@@ -139,7 +139,7 @@ def trips_per_day_job(job_data:dict):
     plt.plot(dates, number_trips)
     plt.xlabel('Date')
     plt.ylabel('Number of Trips')
-    plt.title(f"Trips per day {start_date.strftime('%m/%d/%y')} - {end_date.strftime('%m/%d/%y')}, Location: ({lat:.3f}, {long:.3f}), Radius: {radius}")
+    plt.title(f"Trips per day {start_date.strftime('%m/%d/%y')} - {end_date.strftime('%m/%d/%y')}, Location: ({lat:.3f}, {long:.3f}), Radius: {job_data['radius']} mi")
     plt.tight_layout()
 
     return serialize_fig(fig)
