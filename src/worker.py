@@ -57,8 +57,8 @@ def trip_duration_histogram_job(job_parameters):
     start_date = datetime(year=2023, month=1, day=31) if job_parameters['start_date'] == 'default' else datetime.strptime(job_parameters['start_date'], "%m/%d/%Y")
     end_date = datetime(year=2024, month=1, day=31) if job_parameters['end_date'] == 'default' else datetime.strptime(job_parameters['end_date'], "%m/%d/%Y")
 
-    k1 = job_parameters['kiosk1']
-    k2 = job_parameters['kiosk2']
+    k1 = '3795' if job_parameters['kiosk1'] == 'default' else job_parameters['kiosk1']
+    k2 = '2548' if job_parameters['kiosk1'] == 'default' else job_parameters['kiosk2']
     # Check if parameters are provided and valid
     if not all([start_date,end_date, k1, k2]):
         logging.error("Missing or invalid parameters. Please provide 'day', 'kiosk1', and 'kiosk2' parameters.")
@@ -74,15 +74,20 @@ def trip_duration_histogram_job(job_parameters):
             if kiosk_set == {k1, k2} or kiosk_set == {k2, k1}:
                 trips.append(trip)
 
+    # Check if trips is empty
+    if not trips:
+        return "No trips were made during the specified time period/locations."
+
     # Get trip durations
     trip_durations = [int(trip['trip_duration_minutes']) for trip in trips]
 
     # Plot trip durations on histogram and save figure
-    fig = plt.figure()
+    fig = plt.figure(figsize=(15,8))
     plt.hist(trip_durations, bins=range(0, 31))
     plt.xlabel('Trip Duration (minutes)')
     plt.ylabel('Number of Trips')
-    plt.title(f"Trip Durations between {k1} and {k2} ({start_date.strftime('%m/%d/%y')} - {end_date.strftime('%m/%d/%y')})")
+    plt.title(f"Trip Durations between {trips[0]['checkout_kiosk']} and {trips[0]['return_kiosk']} ({start_date.strftime('%m/%d/%y')} - {end_date.strftime('%m/%d/%y')})")
+    plt.tight_layout()
 
     if type(serialize_fig(fig)) == None:
         logging.warning('serialized fig is none')
@@ -135,6 +140,7 @@ def trips_per_day_job(job_data:dict):
     plt.xlabel('Date')
     plt.ylabel('Number of Trips')
     plt.title(f"Trips per day {start_date.strftime('%m/%d/%y')} - {end_date.strftime('%m/%d/%y')}, Location: ({lat:.3f}, {long:.3f}), Radius: {radius}")
+    plt.tight_layout()
 
     return serialize_fig(fig)
 

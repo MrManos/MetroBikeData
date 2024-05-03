@@ -245,10 +245,12 @@ def submit_job():
     if job_data['plot_type'] == 'trip_duration':
         if all(key in job_data for key in ['kiosk1', 'kiosk2', 'start_date', 'end_date']):
             try:
-                int(job_data['kiosk1'])
-                int(job_data['kiosk2'])
-                datetime.strptime(job_data['start_date'], "%m/%d/%Y")
-                datetime.strptime(job_data['end_date'], "%m/%d/%Y")
+                all_kiosks = json.loads(get_kiosk_keys())
+                k1 = job_data['kiosk1']
+                k2 = job_data['kiosk2']
+                assert k1 in all_kiosks or k1 == 'default' and k2 in all_kiosks or k2 == 'default'
+                assert job_data['start_date'] == 'default' or datetime.strptime(job_data['start_date'], "%m/%d/%Y")
+                assert job_data['end_date'] == 'default' or datetime.strptime(job_data['end_date'], "%m/%d/%Y")
             except:
                 return "Invalid job parameters.", 400
             try:
@@ -267,11 +269,11 @@ def submit_job():
     elif job_data['plot_type'] == 'trips_per_day':
         if all(key in job_data for key in ['start_date', 'end_date', 'latitude', 'longitude', 'radius']):
             try:
-                float(job_data['radius'])
-                float(job_data['latitude'])
-                float(job_data['longitude'])
-                datetime.strptime(job_data['start_date'], "%m/%d/%Y")
-                datetime.strptime(job_data['end_date'], "%m/%d/%Y")
+                assert job_data['radius'] == 'default' or float(job_data['radius'])
+                assert job_data['latitude'] == 'default' or float(job_data['latitude'])
+                assert job_data['longitude'] == 'default' or float(job_data['longitude'])
+                assert job_data['start_date'] == 'default' or datetime.strptime(job_data['start_date'], "%m/%d/%Y")
+                assert job_data['end_date'] == 'default' or datetime.strptime(job_data['end_date'], "%m/%d/%Y")
             except:
                 return "Invalid job parameters.", 400
 
@@ -290,9 +292,6 @@ def submit_job():
             return "Invalid parameters for trip duration plot. Please provide start_date, end_date, lat, long and radius.", 400
     else:
         return "Invalid plot type.", 400
-    
-    #return job_dict
-    # 
 
     return job_info
 
