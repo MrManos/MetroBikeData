@@ -1,4 +1,4 @@
-# The MetroBike Insights App
+# The MetroBike Insights API
 
 MetroBike is key part of Austin's public transportation infrastructure. Currently the City of Austin provides a public dataset of all metrobike trips as well as a dataset of active and inactive MetroBike kiosks. Our application synergizes these two datasets and provides users an efficent way to explore this data. This repository is used to develop, test and host our MetroBike Data Analysis web application.
 
@@ -235,7 +235,7 @@ Parameters:
 Example - public api endpoint (Kubernetes)
 
 ```bash
-% curl -X POST metrobike.coe332.tacc.cloud/jobs -d '{"kiosk1":"4055", "kiosk2":"2498", "start_date":"01/31/2023", "end_date":"01/31/2024", "plot_type":"trip_duration"}' -H "Content-Type: application/json"
+% curl -X POST metrobike.coe332.tacc.cloud/jobs -d '{"kiosk1":"3795", "kiosk2":"2548", "start_date":"01/31/2023", "end_date":"01/31/2024", "plot_type":"trip_duration"}' -H "Content-Type: application/json"
 {
   "id": "5d3596e3-2dd6-4efc-9f7c-5c558e7483ca",
   "job parameters": {
@@ -313,7 +313,7 @@ This route handles `GET` requests to retrieve job results associated with a spec
 Example public api endpoint (Kubernetes)
 
 ```bash
-% curl metrobike.coe332.tacc.cloud/results/5d3596e3-2dd6-4efc-9f7c-5c558e7483ca
+% curl -o trip_duration.png metrobike.coe332.tacc.cloud/results/5d3596e3-2dd6-4efc-9f7c-5c558e7483ca
 ```
 
 Example - locally hosted (Docker)
@@ -374,10 +374,8 @@ This process ensures resource efficiency and prevents conflicts in subsequent co
 
 ## Interpreting the Output
 
-The API endpoints provide access to Austin MetroBike Dataset, allowing users to load, retrieve, and delete travel information stored in a Redis database. The data includes unique identifiers for each kiosk (kiosk_id) as well as additional details about each trip. If you have access to a web broswer, you can also visualize the n nearest kiosks to a provided location as well as their availability.
+The API endpoints provide access to Austin MetroBike dataset, allowing users to load, retrieve, and delete travel information stored in a Redis database. The data includes unique identifiers for each kiosk (kiosk_id) as well as additional details about each trip. If you have access to a web broswer, you can also visualize the n nearest kiosks to a provided location as well as their availability.
 
 ## Acknowledgments
 
-The MetroBike Insights project utilizes data provided by the [City of Austin MetroBike Dataset](https://data.austintexas.gov/resource/qd73-bsdg.json). The README content and instructions were created with the assistance of ChatGPT, an AI language model developed by OpenAI.
-
-data.austintexas.gov/resource/tyfh-5r8s.json
+The MetroBike Insights API project utilizes data provided by the [City of Austin MetroBike Dataset](https://data.austintexas.gov/resource/qd73-bsdg.json). The README content and instructions were created with the assistance of ChatGPT, an AI language model developed by OpenAI.
