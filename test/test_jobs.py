@@ -9,7 +9,7 @@ jdb = redis.Redis(host=REDIS_IP, port=6379, db=2)
 @pytest.fixture
 def setup_job():
     jid = j._generate_jid()
-    job_dict = j._instantiate_job(jid, "submitted", "HGNC:24523", "HGNC:29027")
+    job_dict = j._instantiate_job(jid, "submitted", "kiosk1", "kiosk2")
     assert isinstance(job_dict, dict)
     return jid, job_dict
 

@@ -55,9 +55,7 @@ def process_job(job_id):
 
 def trip_duration_histogram_job(job_parameters):
     """
-    Route to plot routes data for a given day between two kiosk locations to Redis via GET request.
-
-    Example command: curl -o plot.png "localhost:5000/plot?day=01/31/2024&kiosk1=4055&kiosk2=2498"
+    Function that plots the route data for a given time interval between two kiosk locations.
     """
     start_date = datetime(year=2023, month=1, day=31) if job_parameters['start_date'] == 'default' else datetime.strptime(job_parameters['start_date'], "%m/%d/%Y")
     end_date = datetime(year=2024, month=1, day=31) if job_parameters['end_date'] == 'default' else datetime.strptime(job_parameters['end_date'], "%m/%d/%Y")
@@ -71,13 +69,11 @@ def trip_duration_histogram_job(job_parameters):
 
     # Get all the trips on that day between the two kiosks
     trips = []
-    #day = datetime.strptime(day, "%m/%d/%Y")
 
     trips_data = filter_by_date(get_trips(trips_db), start_date, end_date)
     for trip in trips_data:
         if 'checkout_kiosk_id' in trip and 'return_kiosk_id' in trip:
             kiosk_set = {trip['checkout_kiosk_id'], trip['return_kiosk_id']}
-            trips_day = datetime.strptime(trip['checkout_date'][:10], "%Y-%m-%d")
             if kiosk_set == {k1, k2} or kiosk_set == {k2, k1}:
                 trips.append(trip)
 
@@ -88,9 +84,9 @@ def trip_duration_histogram_job(job_parameters):
     fig = plt.figure()
     plt.hist(trip_durations, bins=range(0, 31))
     plt.xlabel('Trip Duration (minutes)')
-    plt.ylabel('Frequency')
-    plt.title('Histogram of Trip Durations')
-    #plt.savefig('plot.png')
+    plt.ylabel('Number of Trips')
+    plt.title(f"Trip Durations between {k1} and {k2} ({start_date.strftime('%m/%d/%y')} - {end_date.strftime('%m/%d/%y')})")
+
     if type(serialize_fig(fig)) == None:
         logging.warning('serialized fig is none')
     return serialize_fig(fig)
@@ -142,7 +138,6 @@ def trips_per_day_job(job_data:dict):
     plt.xlabel('Date')
     plt.ylabel('Number of Trips')
     plt.title(f"Trips per day {start_date.strftime('%m/%d/%y')} - {end_date.strftime('%m/%d/%y')}, Location: ({lat:.3f}, {long:.3f}), Radius: {radius}")
-    #plt.show()
 
     return serialize_fig(fig)
 

@@ -1,10 +1,8 @@
-# Gene API
+# The MetroBike Insights App
 
-## Project Objective
+MetroBike is key part of Austin's public transportation infrastructure. Currently the City of Austin provides a public dataset of all metrobike trips as well as a dataset of active and inactive MetroBike kiosks. Our application syngerizes these two datasets and provides users an efficent way to explore this data. This reporistory is used to develop, test and host our MetroBike Data Analysis web application.
 
-The objective of the Gene API project is to create a Flask-based application for managing and querying gene data from the Human Genome Organization (HUGO) Gene Nomenclature Committee (HGNC). The primary script downloads the complete set of HGNC data, injects it into a Redis database, and provides an interface for querying gene information.
-
-## Contents
+## Directory Contents
 
 - `Dockerfile`: Defines the environment for containerizing the Python script.
 - `README.md`: Instructions and information about the project.
@@ -14,13 +12,16 @@ The objective of the Gene API project is to create a Flask-based application for
 - `docker-compose.yml`: Docker Compose configuration file.
 - `requirements.txt`: File containing Python dependencies.
 - `src`: Directory containing source code files.
-  - `api.py`: Main Python script for managing gene data and providing API endpoints.
+  - `api.py`: Main Python script for managing gene data and providing Flask api endpoints.
   - `jobs.py`: Python script for managing job-related operations.
   - `worker.py`: Python script for managing worker tasks.
 - `test`: Directory containing test files.
   - `test_api.py`: Test file for API functionality.
   - `test_jobs.py`: Test file for job-related operations.
   - `test_worker.py`: Test file for worker functionality.
+- `kubernetes/`: Directory for files related to hosting the app on the TACC Kubernetes cluster.
+  - `prod/`: Kubernetes files specifically for the production deployment
+  - `test/`: Kubernetes files specifically for the test deployment
 
 ## System Architecture
 
@@ -28,110 +29,306 @@ The objective of the Gene API project is to create a Flask-based application for
 
 This software diagram illustrates the components and interactions within the project. It depicts the interactions among the user, a virtual machine hosting a Docker container with Redis, a worker container, and a containerized Flask app all connected with one another for data analysis. This diagram provides a visual overview of the project's structure and workflow, facilitating understanding of its functionality and components.
 
-## Instructions
+## Deployment with Kubernetes
 
-### 1. Accessing the HGNC Data
+After cloning this repository the Jetstream VM (or any other enviornment configured with the TACC Kubernetes cluster) the web application can be launched on the Kubernetes cluster using the `kubectl apply` command.
 
-The HGNC data can be retrieved from the [HGNC website](https://www.genenames.org/download/archive/). Scroll to the bottom of the page and locate the link that says "Current tab separated hgnc_complete_set file" or "Current JSON format hgnc_complete_set file". This file contains comprehensive information about gene names and identifiers approved by the HGNC.
-
-### 2. Building the Container
-
-To build the Docker container for the Gene App, follow these steps:
-
-1. Make sure you have Docker installed on your system and the Docker daemon is running. If not, download and install Docker from [the official Docker website](https://docs.docker.com/get-docker/).
-
-2. Navigate to the directory containing the `Dockerfile` and the Python script `gene_api.py` using the terminal or command prompt.
-
-3. Run the following command to build the Docker image and get the Flask app running in the background:
-
-   ```bash
-   docker-compose up -d
-   ```
-
-   This command builds the Docker image `gene_api` with the tag `latest` and simultaneously launches Redis with the tag `7` (to account for semantic versioning) on port 6379. Both services run in the background.
-
-4. Wait for Docker to complete the build process. Use `docker ps -a` to ensure that both the Gene API and Redis containers are running. The Redis container should be mapped to port 6379.
-
-The Flask app is now ready to use. You can further confirm that it was built successfully by running `docker images` to list all available images on your system.
-
-### 3. Accessing the Routes
-
-Once the Docker container is running, you can access various routes in the Gene API app using `curl` commands or by sending HTTP requests programmatically. The routes below enable you to interact with different aspects of the Gene API and retrieve relevant information. Here are the available routes and their descriptions:
-
-#### 3.1. `curl -X [REQUEST] localhost:5000/data`
-
-- POST: Load the HGNC data to the Redis database. Use a POST request to this endpoint with no additional parameters. Note: This request may take up to 1 minute to process as it is a very large dataset.
-
-- GET: Retrieve all gene data from the Redis database. Use a GET request to this endpoint to fetch the data as a JSON list.
-
-- DELETE: Delete all gene data from the Redis database. Use a DELETE request to this endpoint with no additional parameters.
-
-#### 3.2. `curl localhost:5000/genes`
-
-- GET: Retrieve a JSON-formatted list of all gene IDs (hgnc_id fields) available in the dataset.
-
-#### 3.3. `curl localhost:5000/genes/<hgnc_id>`
-
-- GET: Retrieve all data associated with a specific gene ID. Replace <hgnc_id> in the URL with the desired gene ID to query.
-  Sample output:
+For the test enviornment run
 
 ```bash
-% curl localhost:5000/genes/HGNC:56802
-  {"hgnc_id": "HGNC:56802", "name": "RPL7L1 pseudogene 20", "refseq_accession": ["NG_009836"], "symbol": "RPL7L1P20", "status": "Approved", "entrez_id": "442161", "date_approved_reserved": "2023-04-19", "location_sortable": "06p24.3", "_version_": 1793942620136800258, "uuid": "1ff5fcae-9fad-463c-9522-419befbcedaa", "locus_type": "pseudogene", "pseudogene.org": "PGOHUM00000301251", "locus_group": "pseudogene", "location": "6p24.3", "date_modified": "2023-04-19", "ensembl_gene_id": "ENSG00000216781"}
+% kubectl apply -f kubernetes/test/
 ```
 
-These routes provide comprehensive access to the Gene API's functionalities and data.
-
-### 4. Submitting A Job
-
-To submit a job to the web application, you can use the `/jobs` route. The following `curl` command demonstrates how to submit a job:
+For the production enviornment run
 
 ```bash
-curl -X POST localhost:5000/jobs -d '{"gene1":"HGNC:24523", "gene2":"HGNC:29027"}' -H "Content-Type: application/json"
+% kubectl apply -f kubernetes/prod/
 ```
 
-This command sends a POST request to the `/jobs` route with the required parameters: `gene1` and `gene2`. These are the two genes you want to find similarities between. Below is a sample output after submitting the job:
+Then `kubectl get` can be used to check if the deployments, services, and ingress resources are running.
 
 ```bash
-% curl -X POST localhost:5000/jobs -d '{"gene1":"HGNC:24523", "gene2":"HGNC:29027"}' -H "Content-Type: application/json"
-{"id": "43bcd7c2-c183-4fe4-9be9-d34ac6b01082", "status": "submitted", "gene1": "HGNC:24523", "gene2": "HGNC:29027"}
+% kubectl get pods
+NAME                                   READY   STATUS    RESTARTS   AGE
+flask-deployment-7bfd5dc64f-57khg      1/1     Running   0          32m
+py-debug-688b84b7b4-55gz6              1/1     Running   0          48m
+redis-pvc-deployment-7d7d44c7c-zthkw   1/1     Running   0          48m
+worker-deployment-7f7b6c8dfc-9m2cg     1/1     Running   0          48m
+
+% kubectl get services
+NAME                               TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+metrobike-flask-nodeport-service   NodePort    10.233.55.76   <none>        5000:31719/TCP   48m
+metrobikeapp-flask-service         ClusterIP   10.233.18.28   <none>        5000/TCP         48m
+metrobikeapp-redis-service         ClusterIP   10.233.57.22   <none>        6379/TCP         48m
+
+% kubectl get ingress
+NAME                         CLASS   HOSTS                         ADDRESS                                                    PORTS   AGE
+metrobikeapp-flask-ingress   nginx   metrobike.coe332.tacc.cloud   129.114.36.240,129.114.36.49,129.114.36.83,129.114.38.92   80      49m
 ```
 
-To check the status of the submitted job, you can use the `/jobs/<jobid>` route, replacing `<jobid>` with the ID of the job you want to check. The following `curl` command demonstrates how to check the status of the job created above along with the expected output:
+Now the web application should be running with a public api end point at `metrobike.coe332.tacc.cloud`
+
+## Local Deployment with Docker-Compose
+
+After cloning this repository use `docker compose` to run the services locally.
+
+To force build the images locally use
 
 ```bash
-% curl localhost:5000/jobs/a376dd30-ef71-4c26-9fa2-50fdde4f7f48
-{"id": "a376dd30-ef71-4c26-9fa2-50fdde4f7f48", "status": "in progress", "gene1": "HGNC:24523", "gene2": "HGNC:29027"}
+% docker compose up -d --build
 ```
 
-As jobs complete, the status will change to "complete." To check the progress and IDs of all jobs, use a GET request to the `/jobs` route. This is the expected output of `/jobs` if we simulate a user (or multiple users) running several jobs at the same time:
+Otherwise ommiting the `--build` flag will pull the images `williamzhang0306/metro_bike_app:dev` and `redis/7` from docker hub.
 
 ```bash
-% curl localhost:5000/jobs
-Job ID: a376dd30-ef71-4c26-9fa2-50fdde4f7f48 | Status: complete | gene1: HGNC:24523 | gene2: HGNC:29027
-Job ID: b3a5f5b2-c9b9-4bdc-8c5c-84f884441106 | Status: submitted | gene1: HGNC:24523 | gene2: HGNC:29027
-Job ID: 57dec542-94e8-4150-8f6f-6b44aaf48a3a | Status: submitted | gene1: HGNC:24523 | gene2: HGNC:29027
-Job ID: 6208a542-c003-4f0f-a86d-ba310c1784eb | Status: in progress | gene1: HGNC:24523 | gene2: HGNC:29027
-Job ID: 43bcd7c2-c183-4fe4-9be9-d34ac6b01082 | Status: complete | gene1: HGNC:24523 | gene2: HGNC:29027
-Job ID: 9f8c1ce8-ecff-43c4-9bd9-8a09e56f86ed | Status: complete | gene1: HGNC:24523 | gene2: HGNC:29027
-Job ID: dc7226e7-f090-4697-8e3a-17dbf04f36ab | Status: submitted | gene1: HGNC:24523 | gene2: HGNC:29027
-Job ID: e78e851f-132a-4475-8c44-83387e558ecf | Status: submitted | gene1: HGNC:24523 | gene2: HGNC:29027
+% docker compose up -d
 ```
 
-We can notice from the output the queue in Redis processes jobs one at a time in the order the jobs were submitted.
-
-### 5. Getting Results
-
-In order to get the results of a job, use the `/results/<job_id>` route. Here is a sample output from the results of one of the jobs shown in the previous section:
+The `-d` flag means the services are run in detached mode (in the background). To check if they are running use `docker ps`.
 
 ```bash
-% curl localhost:5000/results/6208a542-c003-4f0f-a86d-ba310c1784eb
-Similarities between HGNC:24523 and HGNC:29027:
-locus_group: protein-coding gene
-date_name_changed: 2016-02-12
-date_modified: 2023-01-20
-locus_type: gene with protein product
-status: Approved
+% docker ps
+CONTAINER ID   IMAGE                                 COMMAND                  CREATED         STATUS         PORTS                                       NAMES
+5c897dbfe1e5   williamzhang0306/metro_bike_app:dev   "python3 api.py"         6 minutes ago   Up 6 minutes   0.0.0.0:5000->5000/tcp, :::5000->5000/tcp   metrobikedata_api_1
+e652aa9b0e23   williamzhang0306/metro_bike_app:dev   "python3 worker.py"      6 minutes ago   Up 6 minutes                                               metrobikedata_worker_1
+997079d905f6   redis:7                               "docker-entrypoint.s…"   6 minutes ago   Up 6 minutes   0.0.0.0:6379->6379/tcp, :::6379->6379/tcp   metrobikedata_redis-db_1
+```
+
+Now the flask api should be accessible locally on `localhost:5000`.
+
+## Flask Routes
+
+The MetroBike Data Analysis Web Application supports the following routes.
+
+### `/data`
+
+A `POST` request to the `/data` will pull the publicly hosted MetroBike Trips data and MetroBike Kiosk data and then load them into the redis database. The user must specify the number of rows from the Trips data base to load.
+
+Example - public api endpoint (Kubernetes)
+
+```bash
+% curl -X POST metrobike.coe332.tacc.cloud/data -d '{"rows":"100000"}' -H "Content-Type: application/json"
+Loaded 100000 trips and 102 kiosks into Redis databases.
+```
+
+Example - locally hosted (Docker)
+
+```bash
+% curl -X POST localhost:5000/data -d '{"rows":"100000"}' -H "Content-Type: application/json"
+Loaded 100000 trips and 102 kiosks into Redis databases.
+```
+
+A `DELETE` request will delete all trips and kiosk data in the redis database
+
+Example - public api endpoint (Kubernetes)
+
+```bash
+% curl -X DELETE metrobike.coe332.tacc.cloud/data
+Deleted trips and kiosks data.
+```
+
+Example - locally hosted (Docker)
+
+```bash
+% curl -X DELETE localhost:5000/data
+Deleted trips and kiosks data.
+```
+
+### `/trips`
+
+A `GET` request to `/trips` will return a json list of the trips that fit the query parameters. The supported query paramaters are
+
+- `start_date`: in `MM/DD/YYYY` format
+- `end_date`: in `MM/DD/YYYY` format
+- `latitude`: latitude in degrees
+- `longitude`: longitude in degrees
+- `radius`: the radius to search within in miles
+
+Example - public api endpoint (Kubernetes)
+
+```bash
+% curl "metrobike.coe332.tacc.cloud/trips?start_date=01/03/2023&end_date=01/03/2024&latitude=30.286&longitude=-97.739&radius=5"
+```
+
+Example - locally hosted (Docker)
+
+```bash
+% curl "localhost:5000/trips?start_date=01/03/2023&end_date=01/03/2024&latitude=30.286&longitude=-97.739&radius=5"
+```
+
+### `/kiosk_ids`
+
+A `GET` request to `/kiosk_ids` will return a list of all available kiosk IDs.
+
+Example - public api endpoint (Kubernetes)
+
+```bash
+% curl "metrobike.coe332.tacc.cloud/kiosk_ids"
+```
+
+Example - locally hosted (Docker)
+
+```bash
+% curl "localhost:5000/kiosk_ids"
+```
+
+### `/nearest`
+
+A `GET` request to `/nearest` will print the n nearest kiosks to a given location along with their details.
+
+Query Parameters:
+
+- `n`: Number of nearest kiosks to display
+- `lat`: Latitude of the location
+- `long`: Longitude of the location
+
+Example - public api endpoint (Kubernetes)
+
+```bash
+% curl "metrobike.coe332.tacc.cloud/nearest?n=5&lat=30.2862730619728&long=-97.73937727490916"
+Nearest Kiosks:
+- Kiosk Name: UT West Mall @ Guadalupe, Kiosk ID: 2548, Distance: 0.24 mi, Status: active 
+- Kiosk Name: 21st & University, Kiosk ID: 3797, Distance: 0.30 mi, Status: active 
+- Kiosk Name: Guadalupe & 21st, Kiosk ID: 2547, Distance: 0.36 mi, Status: active 
+- Kiosk Name: Dean Keeton & Whitis, Kiosk ID: 3795, Distance: 0.40 mi, Status: active 
+- Kiosk Name: 21st & Speedway @PCL, Kiosk ID: 3798, Distance: 0.41 mi, Status: active 
+```
+
+Example - locally hosted (Docker)
+
+```bash
+% curl "localhost:5000/nearest?n=5&lat=30.2862730619728&long=-97.73937727490916"
+```
+
+### `/show_nearest`
+
+A `GET` request to `/show_nearest` will plot the n nearest kiosks to a given location on a map. This route can only be run on a web browser.
+
+Query Parameters:
+
+- `n`: Number of nearest kiosks to display
+- `lat`: Latitude of the location
+- `long`: Longitude of the location
+
+Example browser url - public api endpoint (Kubernetes): `http://metrobike.coe332.tacc.cloud/show_nearest?n=5&lat=30.2862730619728&long=-97.73937727490916`
+
+Example browser url - locally hosted (Docker): `http://localhost:5000/show_nearest?n=5&lat=30.2862730619728&long=-97.73937727490916`
+
+### `/jobs`
+
+This route accepts `POST` requests to submit job requests for creating a Trips Per Day and Trip Duration plot.
+
+Parameters:
+
+- `start_date`: Start date of the analysis period (MM/DD/YYYY)
+- `end_date`: End date of the analysis period (MM/DD/YYYY)
+- `radius`: Radius in miles for spatial analysis
+- `latitude`: Latitude of the location for analysis (degrees)
+- `longitude`: Longitude of the location for analysis (degrees)
+- `plot_type`: Type of plot to generate, options are 'trip_duration' or 'trips_per_day'
+
+Example - public api endpoint (Kubernetes)
+
+```bash
+% curl -X POST metrobike.coe332.tacc.cloud/jobs -d '{"kiosk1":"4055", "kiosk2":"2498", "start_date":"01/31/2023", "end_date":"01/31/2024", "plot_type":"trip_duration"}' -H "Content-Type: application/json"
+{
+  "id": "5d3596e3-2dd6-4efc-9f7c-5c558e7483ca",
+  "job parameters": {
+    "end_date": "01/31/2024",
+    "kiosk1": "4055",
+    "kiosk2": "2498",
+    "plot_type": "trip_duration",
+    "start_date": "01/31/2023"
+  },
+  "status": "submitted"
+}
+```
+
+Example - locally hosted (Docker)
+
+```bash
+% curl -X POST localhost:5000/jobs -d '{"start_date": "01/31/2023", "end_date":"01/31/2024", "latitude":"30.286", "longitude":"-97.739", "radius":"3", "plot_type":"trips_per_day"}' -H "Content-Type: application/json"
+{
+  "id": "50993b9f-9e73-4593-89ba-1d0c1d224726",
+  "job parameters": {
+    "end_date": "01/31/2024",
+    "lat": "30.286",
+    "long": "-97.739",
+    "plot_type": "trips_per_day",
+    "radius": "3",
+    "start_date": "01/31/2023"
+  },
+  "status": "submitted"
+}
+```
+
+
+### `/jobs/<job_id>`
+
+This route handles `GET` requests to retrieve information about a specific job identified by its unique `job_id`.
+
+Example public api endpoint (Kubernetes)
+
+```bash
+% curl metrobike.coe332.tacc.cloud/jobs/5d3596e3-2dd6-4efc-9f7c-5c558e7483ca
+{
+  "id": "5d3596e3-2dd6-4efc-9f7c-5c558e7483ca",
+  "job parameters": {
+    "end_date": "01/31/2024",
+    "kiosk1": "4055",
+    "kiosk2": "2498",
+    "plot_type": "trip_duration",
+    "start_date": "01/31/2023"
+  },
+  "status": "complete"
+}
+```
+
+Example - locally hosted (Docker)
+```bash
+% curl localhost:5000/jobs/50993b9f-9e73-4593-89ba-1d0c1d224726
+{
+  "id": "50993b9f-9e73-4593-89ba-1d0c1d224726",
+  "job parameters": {
+    "end_date": "01/31/2024",
+    "lat": "30.286",
+    "long": "-97.739",
+    "plot_type": "trips_per_day",
+    "radius": "3",
+    "start_date": "01/31/2023"
+  },
+  "status": "complete"
+}
+```
+
+### `/results/<job_id>`
+
+This route handles `GET` requests to retrieve job results associated with a specific `job_id`. If the job has not yet completed, it will return a message indicating the current status.
+
+Example public api endpoint (Kubernetes)
+
+```bash
+% curl metrobike.coe332.tacc.cloud/results/5d3596e3-2dd6-4efc-9f7c-5c558e7483ca
+```
+
+Example - locally hosted (Docker)
+```bash
+% curl -o trips_per_day.png localhost:5000/results/50993b9f-9e73-4593-89ba-1d0c1d224726
+```
+
+### `/help`
+This route provides a menu for users to learn about the available commands of the program.
+
+Example public api endpoint (Kubernetes)
+
+```bash
+% curl metrobike.coe332.tacc.cloud:5000/help
+```
+
+Example - locally hosted (Docker)
+
+```bash
+% curl localhost:5000/help
 ```
 
 ### 6. Running Unit Tests
@@ -159,13 +356,13 @@ test_worker.py .                                                                
 Do not forget to stop and remove the container once you are done interacting with the Flask microservice using:
 
 ```bash
-docker-compose down
+% docker-compose down
 ```
 
 You can make sure the container has been stopped and removed by running:
 
 ```bash
-docker ps -a
+% docker ps -a
 ```
 
 This process ensures resource efficiency and prevents conflicts in subsequent container executions. Note: The data in redis, once posted, will persist even after you stop and remove the containers or the Docker images themselves with `docker rmi`.
@@ -176,4 +373,4 @@ The API endpoints provide access to gene data from the HGNC dataset, allowing us
 
 ## Acknowledgments
 
-The Gene API project utilizes data provided by the Human Genome Organization (HUGO) Gene Nomenclature Committee (HGNC). The README content and instructions were created with the assistance of ChatGPT, an AI language model developed by OpenAI.
+The MetroBike Insights project utilizes data provided by the Human Genome Organization (HUGO) Gene Nomenclature Committee (HGNC). The README content and instructions were created with the assistance of ChatGPT, an AI language model developed by OpenAI.

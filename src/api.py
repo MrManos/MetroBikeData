@@ -31,7 +31,7 @@ trips_url = "https://data.austintexas.gov/resource/tyfh-5r8s.json?"
 kiosk_url = "https://data.austintexas.gov/resource/qd73-bsdg.json"
 
 @app.route('/data', methods=['POST', 'DELETE'])
-def load_data():
+def load_data()->tuple:
     """
     Route to load data to Redis via POST request.
 
@@ -57,11 +57,12 @@ def load_data():
             return "The value of 'rows' must be an integer.", 400
 
         # Load trips data to trips_db in chunks
-        chunk_size = 1000000
+        chunk_size = 1000001
         response = requests.get(trips_url + f"$limit={rows}&$order=checkout_date DESC")
         if response.status_code != 200:
             logging.error("Failed to load data to Redis")
             return 'Failed to load data to Redis', 500
+        # Clear all databases
         trips_db.flushall()
         trips_data = response.json()
         logging.debug(f"Number of trips retrieved: {len(trips_data)}")  
@@ -87,7 +88,6 @@ def load_data():
 
         return f'Loaded {len(trips_data)} trips and {len(kiosk_data)} kiosks into Redis databases.', 200
 
-
     elif request.method == 'DELETE':
         for key in trips_db.keys():
             trips_db.delete(key)
@@ -95,39 +95,39 @@ def load_data():
         for key in kiosk_db.keys():
             kiosk_db.delete(key)
 
-        return f"Deleted trips and kiosks data"
+        return f"Deleted trips and kiosks data.", 200
 
 @app.route('/trips', methods = ['GET'])
-def get_trip_data():
+def get_trip_data()->list:
     '''
     Returns filtered trip data
 
-    curl "localhost:5000/trips?start_date=2024-1-3&end_date=2024-1-23&latitude=30.286&longitude=-97.739&radius=5"
+    Example command: curl "localhost:5000/trips?start_date=01/03/2023&end_date=01/03/2024&latitude=30.286&longitude=-97.739&radius=5"
     '''
+    if trips_db.dbsize() == 0:
+        return 'Please load data with "/data" route before calling other routes. Check out the /help route for more information.', 200
     # default values
     arg_data = {
-        'start_date': '2000-01-01',
-        'end_date': '2999-12-31',
+        'start_date': '01/01/2000',
+        'end_date': '12/31/2999',
         'latitude': '30.286',
         'longitude': '-97.739',
         'radius' : '50'
     }
 
     args = ['start_date', 'end_date', 'latitude', 'longitude', 'radius']
-
     for arg in args:
-        if request.args.get(arg): # try to get from request
-            arg_data[arg] = request.args.get(arg)
+        arg_data[arg] = request.args.get(arg) if request.args.get(arg) else arg_data[arg]
     
     # parse args
     try:
-        start_date = datetime.strptime(arg_data['start_date'], '%Y-%m-%d')
-        end_date = datetime.strptime(arg_data['end_date'], '%Y-%m-%d')
+        start_date = datetime.strptime(arg_data['start_date'], "%m/%d/%Y")
+        end_date = datetime.strptime(arg_data['end_date'], "%m/%d/%Y")
         lat = float(arg_data['latitude'])
         long = float(arg_data['longitude'])
-        radius = float(arg_data['radius'])
+        radius = float(arg_data['radius'])*1.609344
     except:
-        return 'Invalid Query Parameter Format'
+        return 'Invalid Query Parameter Format', 400
     
     # get and filter trip data
     trips = get_trips(trips_db)
@@ -143,6 +143,8 @@ def get_kiosk_keys():
 
     Example command: curl localhost:5000/kiosk_ids
     '''
+    if trips_db.dbsize() == 0:
+        return 'Please load data with "/data" route before calling other routes. Check out the /help route for more information.', 200
     return str([kiosk['kiosk_id'] for kiosk in get_kiosks(kiosk_db)])
 
 @app.route('/show_nearest', methods = ['GET'])
@@ -152,6 +154,8 @@ def show_nearest_kiosks():
 
     Example route to paste into browser: localhost:5000/show_nearest?n=5&lat=30.2862730619728&long=-97.73937727490916
     """
+    if trips_db.dbsize() == 0:
+        return 'Please load data with "/data" route before calling other routes. Check out the /help route for more information.', 200
     try:
         n, lat, long = int(request.args.get('n')), float(request.args.get('lat')), float(request.args.get('long'))
     except ValueError:
@@ -191,6 +195,8 @@ def get_nearest_kiosks():
 
     Example command: curl "localhost:5000/nearest?n=5&lat=30.2862730619728&long=-97.73937727490916"
     """
+    if trips_db.dbsize() == 0:
+        return 'Please load data with "/data" route before calling other routes. Check out the /help route for more information.', 200
     try:
         n, lat, long = int(request.args.get('n')), float(request.args.get('lat')), float(request.args.get('long'))
     except ValueError:
@@ -205,7 +211,7 @@ def get_nearest_kiosks():
     response_string = "Nearest Kiosks:\n"
     for kiosk in nearest:
         distance = great_circle_distance(lat, long, float(kiosk['location']['latitude']), float(kiosk['location']['longitude']))
-        response_string += f"- Kiosk Name: {kiosk['kiosk_name']}, Kiosk ID: {kiosk['kiosk_id']}, Distance: {distance:.2f} km, Status: {kiosk['kiosk_status']} \n"
+        response_string += f"- Kiosk Name: {kiosk['kiosk_name']}, Kiosk ID: {kiosk['kiosk_id']}, Distance: {distance:.2f} mi, Status: {kiosk['kiosk_status']} \n"
 
     return response_string
 
@@ -215,17 +221,18 @@ def submit_job():
     Check if a job request is valid and then submits the request.
 
     job parameters
-    - start date
-    - end date
-    - radius
-    - latitude
-    - longitude
-    - plot type - e.g trip duration histogram, number of trips per day, etc.
+    - start date (MM/DD/YYYY)
+    - end date (MM/DD/YYYY)
+    - radius (miles)
+    - latitude (degrees)
+    - longitude (degrees)
+    - plot type - 'trip_duration' or 'trips_per_day'
 
     curl -X POST localhost:5000/jobs -d '{"kiosk1":"4055", "kiosk2":"2498", "start_date":"01/31/2023", "end_date":"01/31/2024", "plot_type":"trip_duration"}' -H "Content-Type: application/json"
     curl -X POST localhost:5000/jobs -d '{"start_date": "01/31/2023", "end_date":"01/31/2024", "latitude":"30.286", "longitude":"-97.739", "radius":"3", "plot_type":"trips_per_day"}' -H "Content-Type: application/json"
     '''
-    
+    if trips_db.dbsize() == 0:
+        return 'Please load data with "/data" route before submitting a job.'
     job_data = request.get_json()
     allowed_params = ['kiosk1','kiosk2','start_date','end_date','latitude','longitude','radius','plot_type']
     for param in job_data:
@@ -234,6 +241,7 @@ def submit_job():
     if 'plot_type' not in job_data:
         return "Must include a plot type.", 400
     
+    # Ensure job paramaters are valid and submit job
     if job_data['plot_type'] == 'trip_duration':
         if all(key in job_data for key in ['kiosk1', 'kiosk2', 'start_date', 'end_date']):
             try:
@@ -292,12 +300,46 @@ def submit_job():
 def get_job(job_id):
     '''
     Returns job information associated with the job id.
+
+    Example command: curl localhost:5000/jobs/<job_id>
     '''
+    if trips_db.dbsize() == 0:
+        return 'Please load data with "/data" route before calling other routes. Check out the /help route for more information.', 200
     try:
         return get_job_by_id(job_id)
     except:
         return f"Job {job_id} not found"
     
+@app.route('/results/<job_id>', methods = ['GET'])
+def get_results(job_id):
+    '''
+    Returns job results associated with the job id. If the job
+    has not yet completed, it will return message indicating the
+    current status.
+
+    Example command: curl -o <output_file_name> localhost:5000/results/<job_id>
+    '''
+    if trips_db.dbsize() == 0:
+        return 'Please load data with "/data" route before calling other routes. Check out the /help route for more information.', 200
+    # check if the job exists
+    try:
+        job_dict = get_job_by_id(job_id)
+    except:
+        return f"Job {job_id} not found."
+    
+    # check if the job is complete
+    status = job_dict['status']
+    if job_dict['status'] != 'complete':
+        return f"Job {job_id} not complete. Current status: {status}"
+
+    # get results
+    results = get_results_by_id(job_id)
+    if not results:
+        # no results found
+        return f"Results for job {job_id} not found."
+    else:
+        return Response(results, mimetype="image/png'")
+
 @app.route('/help', methods=['GET'])
 def help_route() -> str:
     """
@@ -331,34 +373,6 @@ def help_route() -> str:
         Example: curl localhost:5000/jobs/1234
     '''
     return help_message
-
-    
-@app.route('/results/<job_id>', methods = ['GET'])
-def get_results(job_id):
-    '''
-    Returns job results associated with the job id. If the job
-    has not yet completed, it will return message indicating the
-    current status.
-    '''
-
-    # check if the job exists
-    try:
-        job_dict = get_job_by_id(job_id)
-    except:
-        return f"Job {job_id} not found."
-    
-    # check if the job is complete
-    status = job_dict['status']
-    if job_dict['status'] != 'complete':
-        return f"Job {job_id} not complete. Current status: {status}"
-
-    # get results
-    results = get_results_by_id(job_id)
-    if not results:
-        # no results found
-        return f"Results for job {job_id} not found."
-    else:
-        return Response(results, mimetype="image/png'")
 
 if __name__ == '__main__':
     app.run(debug=True, host = '0.0.0.0', port = 5000)

@@ -5,10 +5,6 @@ from typing import List
 from gcd_algorithm import great_circle_distance
 import logging
 
-'''
-TODO: Filter by kiosk, have option to check if either kiosk is within the radius, or just the checkout/return.
-'''
- 
 def get_data(trips_db: redis.client.Redis, kiosk_db: redis.client.Redis) -> tuple:
     """
     Retrieve trips and kiosk data from Redis databases.
@@ -20,7 +16,7 @@ def get_data(trips_db: redis.client.Redis, kiosk_db: redis.client.Redis) -> tupl
     Returns:
         tuple: A tuple containing trips data (list) and kiosk data (list).
     """
-    # Retrieve trips data
+    # Retrieve trips & kiosk data from redis database
     trips_data = []
     for key in sorted(trips_db.keys()):
         trips_data.extend(json.loads(trips_db.get(key)))
@@ -32,7 +28,7 @@ def get_data(trips_db: redis.client.Redis, kiosk_db: redis.client.Redis) -> tupl
 
 def get_trips(trips_db: redis.client.Redis) -> tuple:
     """
-    Retrieve trips and kiosk data from Redis databases.
+    Retrieve trips data from Redis database.
 
     Args:
         trips_db (redis.client.Redis): Redis connection for trips database.
@@ -49,13 +45,13 @@ def get_trips(trips_db: redis.client.Redis) -> tuple:
 
 def get_kiosks(kiosk_db: redis.client.Redis) -> tuple:
     """
-    Retrieve kiosk data from Redis databases.
+    Retrieve kiosk data from Redis database.
 
     Args:
         kiosk_db (redis.client.Redis): Redis connection for kiosk database.
 
     Returns:
-        List[dict]: kiosk data
+        List[dict]: Kiosk data
     """
     # Retrieve trips data
     kiosk_data = json.loads(kiosk_db.get('kiosks'))

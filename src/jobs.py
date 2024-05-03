@@ -16,7 +16,7 @@ q = HotQueue("queue", host=REDIS_IP, port=6379, db=2)
 jdb = redis.Redis(host=REDIS_IP, port=6379, db=3)
 res = redis.Redis(host=REDIS_IP, port=6379, db=4)
 
-def _generate_jid():
+def _generate_jid()->str:
     """
     Generate a pseudo-random identifier for a job.
     """
