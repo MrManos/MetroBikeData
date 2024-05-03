@@ -24,10 +24,15 @@ MetroBike is key part of Austin's public transportation infrastructure. Currentl
   - `test/`: Kubernetes files specifically for the test deployment.
 
 ## System Architecture
+**Kubernetes Deployment Diagram**
 
-![Software Diagram](diagram.png)
+![Kubernetes Deployment Diagram](kubernetes_diagram.png)
 
-This software diagram illustrates the components and interactions within the project. It depicts the interactions among the user, a virtual machine hosting a Docker container with Redis, a worker container, and a containerized Flask app all connected with one another for data analysis. This diagram provides a visual overview of the project's structure and workflow, facilitating understanding of its functionality and components.
+**Docker Deployment Diagram**
+
+![Docker Deployment Diagram](docker_diagram.png)
+
+This software diagram illustrates the components and interactions within the project. It depicts the interactions among the user, a virtual machine hosting a Docker container with Redis, a worker container, and a containerized Flask app all connected with one another for data analysis. It also includes the Kubernetes deployment, showcasing how the Docker containers are orchestrated and managed within the Kubernetes cluster.
 
 ## Deployment with Kubernetes
 
