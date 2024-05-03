@@ -1,6 +1,6 @@
 # The MetroBike Insights App
 
-MetroBike is key part of Austin's public transportation infrastructure. Currently the City of Austin provides a public dataset of all metrobike trips as well as a dataset of active and inactive MetroBike kiosks. Our application syngerizes these two datasets and provides users an efficent way to explore this data. This reporistory is used to develop, test and host our MetroBike Data Analysis web application.
+MetroBike is key part of Austin's public transportation infrastructure. Currently the City of Austin provides a public dataset of all metrobike trips as well as a dataset of active and inactive MetroBike kiosks. Our application synergizes these two datasets and provides users an efficent way to explore this data. This repository is used to develop, test and host our MetroBike Data Analysis web application.
 
 ## Directory Contents
 
@@ -20,8 +20,8 @@ MetroBike is key part of Austin's public transportation infrastructure. Currentl
   - `test_jobs.py`: Test file for job-related operations.
   - `test_worker.py`: Test file for worker functionality.
 - `kubernetes/`: Directory for files related to hosting the app on the TACC Kubernetes cluster.
-  - `prod/`: Kubernetes files specifically for the production deployment
-  - `test/`: Kubernetes files specifically for the test deployment
+  - `prod/`: Kubernetes files specifically for the production deployment.
+  - `test/`: Kubernetes files specifically for the test deployment.
 
 ## System Architecture
 
@@ -331,27 +331,27 @@ Example - locally hosted (Docker)
 % curl localhost:5000/help
 ```
 
-### 6. Running Unit Tests
+## Running Unit Tests
 
 In order to run unit tests on the Flask routes, worker, and jobs files, you can enter an interactive terminal within the api container and running `pytest`.
 An example output is shown below:
 
 ```bash
 % docker-compose exec api /bin/bash
-root@f9d1b4516a39:/code# pytest
-====================================================================== test session starts =======================================================================
-platform linux -- Python 3.8.10, pytest-8.0.0, pluggy-1.4.0
+root@a6eb49dc2333:/code# pytest
+=================================================================== test session starts ===================================================================
+platform linux -- Python 3.8.10, pytest-8.0.0, pluggy-1.5.0
 rootdir: /code
-collected 11 items
+collected 10 items                                                                                                                                        
 
-test_api.py ......                                                                                                                                         [ 54%]
-test_jobs.py ....                                                                                                                                          [ 90%]
-test_worker.py .                                                                                                                                           [100%]
+test_api.py .....                                                                                                                                   [ 50%]
+test_jobs.py ...                                                                                                                                    [ 80%]
+test_worker.py ..                                                                                                                                   [100%]
 
-======================================================================= 11 passed in 9.04s =======================================================================
+=================================================================== 10 passed in 11.87s ===================================================================
 ```
 
-### 7. Clean Up
+## 7. Clean Up
 
 Do not forget to stop and remove the container once you are done interacting with the Flask microservice using:
 
@@ -369,8 +369,10 @@ This process ensures resource efficiency and prevents conflicts in subsequent co
 
 ## Interpreting the Output
 
-The API endpoints provide access to gene data from the HGNC dataset, allowing users to load, retrieve, and delete gene information stored in a Redis database. The data includes unique identifiers for each gene (hgnc_id) as well as additional details about each gene.
+The API endpoints provide access to Austin MetroBike Dataset, allowing users to load, retrieve, and delete travel information stored in a Redis database. The data includes unique identifiers for each kiosk (kiosk_id) as well as additional details about each trip. If you have access to a web broswer, you can also visualize the n nearest kiosks to a provided location as well as their availability.
 
 ## Acknowledgments
 
-The MetroBike Insights project utilizes data provided by the Human Genome Organization (HUGO) Gene Nomenclature Committee (HGNC). The README content and instructions were created with the assistance of ChatGPT, an AI language model developed by OpenAI.
+The MetroBike Insights project utilizes data provided by the [City of Austin MetroBike Dataset](https://data.austintexas.gov/resource/qd73-bsdg.json). The README content and instructions were created with the assistance of ChatGPT, an AI language model developed by OpenAI.
+
+data.austintexas.gov/resource/tyfh-5r8s.json

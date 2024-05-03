@@ -1,15 +1,11 @@
 import pytest
 import jobs as j
-import os
-import redis
-
-REDIS_IP = os.environ.get("REDIS_IP")
-jdb = redis.Redis(host=REDIS_IP, port=6379, db=2)
+from jobs import jdb
 
 @pytest.fixture
 def setup_job():
     jid = j._generate_jid()
-    job_dict = j._instantiate_job(jid, "submitted", "kiosk1", "kiosk2")
+    job_dict = j._instantiate_job(jid, "submitted", {"n":"5","lat":"30.2862730619728","long":"-97.73937727490916"})
     assert isinstance(job_dict, dict)
     return jid, job_dict
 

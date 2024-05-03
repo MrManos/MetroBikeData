@@ -31,17 +31,14 @@ def process_job(job_id):
     # Simulate processing time
     time.sleep(5)
 
-    # Calculate similarities between genes
+    # Generate the desired plot
     result = None
     job_params = jobs.get_job_by_id(job_id)['job parameters']
     job_type = job_params['plot_type']
     if job_type == 'trip_duration':
         result = trip_duration_histogram_job(job_params)
-        
     elif job_type == 'trips_per_day':
         result = trips_per_day_job(job_params)
-        # result is bytesIO object?
-   
     else: 
         # Simulate processing time
         logging.warning('Invalid plot/job type')

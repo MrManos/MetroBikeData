@@ -145,7 +145,7 @@ def get_kiosk_keys():
     '''
     if trips_db.dbsize() == 0:
         return 'Please load data with "/data" route before calling other routes. Check out the /help route for more information.', 200
-    return str([kiosk['kiosk_id'] for kiosk in get_kiosks(kiosk_db)])
+    return json.dumps([kiosk['kiosk_id'] for kiosk in get_kiosks(kiosk_db)])
 
 @app.route('/show_nearest', methods = ['GET'])
 def show_nearest_kiosks():
