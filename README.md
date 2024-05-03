@@ -41,19 +41,22 @@ After cloning this repository the Jetstream VM (or any other enviornment configu
 For the test enviornment run
 
 ```bash
-% kubectl apply -f kubernetes/test/
+kubectl apply -f kubernetes/test/
 ```
 
 For the production enviornment run
 
 ```bash
-% kubectl apply -f kubernetes/prod/
+kubectl apply -f kubernetes/prod/
 ```
 
 Then `kubectl get` can be used to check if the deployments, services, and ingress resources are running.
 
 ```bash
-% kubectl get pods
+kubectl get pods
+```
+
+```
 NAME                                   READY   STATUS    RESTARTS   AGE
 flask-deployment-7bfd5dc64f-57khg      1/1     Running   0          32m
 py-debug-688b84b7b4-55gz6              1/1     Running   0          48m
@@ -65,8 +68,13 @@ NAME                               TYPE        CLUSTER-IP     EXTERNAL-IP   PORT
 metrobike-flask-nodeport-service   NodePort    10.233.55.76   <none>        5000:31719/TCP   48m
 metrobikeapp-flask-service         ClusterIP   10.233.18.28   <none>        5000/TCP         48m
 metrobikeapp-redis-service         ClusterIP   10.233.57.22   <none>        6379/TCP         48m
+```
 
+```bash
 % kubectl get ingress
+```
+
+```
 NAME                         CLASS   HOSTS                         ADDRESS                                                    PORTS   AGE
 metrobikeapp-flask-ingress   nginx   metrobike.coe332.tacc.cloud   129.114.36.240,129.114.36.49,129.114.36.83,129.114.38.92   80      49m
 ```
@@ -80,19 +88,22 @@ After cloning this repository use `docker compose` to run the services locally.
 To force build the images locally use
 
 ```bash
-% docker compose up -d --build
+docker compose up -d --build
 ```
 
 Otherwise ommiting the `--build` flag will pull the images `williamzhang0306/metro_bike_app:dev` and `redis/7` from docker hub.
 
 ```bash
-% docker compose up -d
+docker compose up -d
 ```
 
 The `-d` flag means the services are run in detached mode (in the background). To check if they are running use `docker ps`.
 
 ```bash
-% docker ps
+docker ps -a
+```
+
+```
 CONTAINER ID   IMAGE                                 COMMAND                  CREATED         STATUS         PORTS                                       NAMES
 5c897dbfe1e5   williamzhang0306/metro_bike_app:dev   "python3 api.py"         6 minutes ago   Up 6 minutes   0.0.0.0:5000->5000/tcp, :::5000->5000/tcp   metrobikedata_api_1
 e652aa9b0e23   williamzhang0306/metro_bike_app:dev   "python3 worker.py"      6 minutes ago   Up 6 minutes                                               metrobikedata_worker_1
@@ -112,14 +123,18 @@ A `POST` request to the `/data` will pull the publicly hosted MetroBike Trips da
 Example - public api endpoint (Kubernetes)
 
 ```bash
-% curl -X POST metrobike.coe332.tacc.cloud/data -d '{"rows":"100000"}' -H "Content-Type: application/json"
+curl -X POST metrobike.coe332.tacc.cloud/data -d '{"rows":"100000"}' -H "Content-Type: application/json"
+```
+```
 Loaded 100000 trips and 102 kiosks into Redis databases.
 ```
 
 Example - locally hosted (Docker)
 
 ```bash
-% curl -X POST localhost:5000/data -d '{"rows":"100000"}' -H "Content-Type: application/json"
+curl -X POST localhost:5000/data -d '{"rows":"100000"}' -H "Content-Type: application/json"
+```
+```
 Loaded 100000 trips and 102 kiosks into Redis databases.
 ```
 
@@ -128,14 +143,18 @@ A `DELETE` request will delete all trips and kiosk data in the redis database
 Example - public api endpoint (Kubernetes)
 
 ```bash
-% curl -X DELETE metrobike.coe332.tacc.cloud/data
+curl -X DELETE metrobike.coe332.tacc.cloud/data
+```
+```
 Deleted trips and kiosks data.
 ```
 
 Example - locally hosted (Docker)
 
 ```bash
-% curl -X DELETE localhost:5000/data
+curl -X DELETE localhost:5000/data
+```
+```
 Deleted trips and kiosks data.
 ```
 
@@ -152,13 +171,13 @@ A `GET` request to `/trips` will return a json list of the trips that fit the qu
 Example - public api endpoint (Kubernetes)
 
 ```bash
-% curl "metrobike.coe332.tacc.cloud/trips?start_date=01/03/2023&end_date=01/03/2024&latitude=30.286&longitude=-97.739&radius=5"
+curl "metrobike.coe332.tacc.cloud/trips?start_date=01/03/2023&end_date=01/03/2024&latitude=30.286&longitude=-97.739&radius=5"
 ```
 
 Example - locally hosted (Docker)
 
 ```bash
-% curl "localhost:5000/trips?start_date=01/03/2023&end_date=01/03/2024&latitude=30.286&longitude=-97.739&radius=5"
+curl "localhost:5000/trips?start_date=01/03/2023&end_date=01/03/2024&latitude=30.286&longitude=-97.739&radius=5"
 ```
 
 ### `/kiosk_ids`
@@ -168,13 +187,13 @@ A `GET` request to `/kiosk_ids` will return a list of all available kiosk IDs.
 Example - public api endpoint (Kubernetes)
 
 ```bash
-% curl "metrobike.coe332.tacc.cloud/kiosk_ids"
+curl "metrobike.coe332.tacc.cloud/kiosk_ids"
 ```
 
 Example - locally hosted (Docker)
 
 ```bash
-% curl "localhost:5000/kiosk_ids"
+curl "localhost:5000/kiosk_ids"
 ```
 
 ### `/nearest`
@@ -190,7 +209,9 @@ Query Parameters:
 Example - public api endpoint (Kubernetes)
 
 ```bash
-% curl "metrobike.coe332.tacc.cloud/nearest?n=5&lat=30.2862730619728&long=-97.73937727490916"
+curl "metrobike.coe332.tacc.cloud/nearest?n=5&lat=30.2862730619728&long=-97.73937727490916"
+```
+```
 Nearest Kiosks:
 - Kiosk Name: UT West Mall @ Guadalupe, Kiosk ID: 2548, Distance: 0.24 mi, Status: active 
 - Kiosk Name: 21st & University, Kiosk ID: 3797, Distance: 0.30 mi, Status: active 
@@ -202,7 +223,7 @@ Nearest Kiosks:
 Example - locally hosted (Docker)
 
 ```bash
-% curl "localhost:5000/nearest?n=5&lat=30.2862730619728&long=-97.73937727490916"
+curl "localhost:5000/nearest?n=5&lat=30.2862730619728&long=-97.73937727490916"
 ```
 
 ### `/show_nearest`
@@ -235,7 +256,9 @@ Parameters:
 Example - public api endpoint (Kubernetes)
 
 ```bash
-% curl -X POST metrobike.coe332.tacc.cloud/jobs -d '{"kiosk1":"3795", "kiosk2":"2548", "start_date":"01/31/2023", "end_date":"01/31/2024", "plot_type":"trip_duration"}' -H "Content-Type: application/json"
+curl -X POST metrobike.coe332.tacc.cloud/jobs -d '{"kiosk1":"3795", "kiosk2":"2548", "start_date":"01/31/2023", "end_date":"01/31/2024", "plot_type":"trip_duration"}' -H "Content-Type: application/json"
+```
+```
 {
   "id": "5d3596e3-2dd6-4efc-9f7c-5c558e7483ca",
   "job parameters": {
@@ -252,7 +275,9 @@ Example - public api endpoint (Kubernetes)
 Example - locally hosted (Docker)
 
 ```bash
-% curl -X POST localhost:5000/jobs -d '{"start_date": "01/31/2023", "end_date":"01/31/2024", "latitude":"30.286", "longitude":"-97.739", "radius":"3", "plot_type":"trips_per_day"}' -H "Content-Type: application/json"
+curl -X POST localhost:5000/jobs -d '{"start_date": "01/31/2023", "end_date":"01/31/2024", "latitude":"30.286", "longitude":"-97.739", "radius":"3", "plot_type":"trips_per_day"}' -H "Content-Type: application/json"
+```
+```
 {
   "id": "50993b9f-9e73-4593-89ba-1d0c1d224726",
   "job parameters": {
@@ -275,7 +300,9 @@ This route handles `GET` requests to retrieve information about a specific job i
 Example public api endpoint (Kubernetes)
 
 ```bash
-% curl metrobike.coe332.tacc.cloud/jobs/5d3596e3-2dd6-4efc-9f7c-5c558e7483ca
+curl metrobike.coe332.tacc.cloud/jobs/5d3596e3-2dd6-4efc-9f7c-5c558e7483ca
+```
+```
 {
   "id": "5d3596e3-2dd6-4efc-9f7c-5c558e7483ca",
   "job parameters": {
@@ -291,7 +318,9 @@ Example public api endpoint (Kubernetes)
 
 Example - locally hosted (Docker)
 ```bash
-% curl localhost:5000/jobs/50993b9f-9e73-4593-89ba-1d0c1d224726
+curl localhost:5000/jobs/50993b9f-9e73-4593-89ba-1d0c1d224726
+```
+```
 {
   "id": "50993b9f-9e73-4593-89ba-1d0c1d224726",
   "job parameters": {
@@ -313,12 +342,12 @@ This route handles `GET` requests to retrieve job results associated with a spec
 Example public api endpoint (Kubernetes)
 
 ```bash
-% curl -o trip_duration.png metrobike.coe332.tacc.cloud/results/5d3596e3-2dd6-4efc-9f7c-5c558e7483ca
+curl -o trip_duration.png metrobike.coe332.tacc.cloud/results/5d3596e3-2dd6-4efc-9f7c-5c558e7483ca
 ```
 
 Example - locally hosted (Docker)
 ```bash
-% curl -o trips_per_day.png localhost:5000/results/50993b9f-9e73-4593-89ba-1d0c1d224726
+curl -o trips_per_day.png localhost:5000/results/50993b9f-9e73-4593-89ba-1d0c1d224726
 ```
 
 ### `/help`
@@ -327,13 +356,13 @@ This route provides a menu for users to learn about the available commands of th
 Example public api endpoint (Kubernetes)
 
 ```bash
-% curl metrobike.coe332.tacc.cloud:5000/help
+curl metrobike.coe332.tacc.cloud:5000/help
 ```
 
 Example - locally hosted (Docker)
 
 ```bash
-% curl localhost:5000/help
+curl localhost:5000/help
 ```
 
 ## Running Unit Tests
@@ -342,7 +371,9 @@ In order to run unit tests on the Flask routes, worker, and jobs files, you can 
 An example output is shown below:
 
 ```bash
-% docker-compose exec api /bin/bash
+docker-compose exec api /bin/bash
+```
+```
 root@a6eb49dc2333:/code# pytest
 =================================================================== test session starts ===================================================================
 platform linux -- Python 3.8.10, pytest-8.0.0, pluggy-1.5.0
@@ -361,13 +392,13 @@ test_worker.py ..                                                               
 Do not forget to stop and remove the container once you are done interacting with the Flask microservice using:
 
 ```bash
-% docker-compose down
+docker-compose down
 ```
 
 You can make sure the container has been stopped and removed by running:
 
 ```bash
-% docker ps -a
+docker ps -a
 ```
 
 This process ensures resource efficiency and prevents conflicts in subsequent container executions. Note: The data in redis, once posted, will persist even after you stop and remove the containers or the Docker images themselves with `docker rmi`.
